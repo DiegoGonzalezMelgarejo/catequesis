@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { HeartHandshake, ShieldCheck, Sparkles } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -7,9 +6,7 @@ import { z } from 'zod'
 
 import { AppCard } from '@/components/app/app-card'
 import { AppInput } from '@/components/app/app-input'
-import { Badge } from '@/components/app/badge'
 import { PrimaryButton } from '@/components/app/primary-button'
-import { StatsCard } from '@/components/app/stats-card'
 import { useAuth } from '@/hooks/use-auth'
 
 const schema = z.object({
@@ -34,45 +31,22 @@ export function LoginPage() {
     const authenticated = await login(values.username, values.password)
 
     if (!authenticated) {
-      toast.error('Credenciales invalidas o usuario inactivo.')
+      toast.error('Credenciales inválidas o usuario inactivo.')
       return
     }
 
-    toast.success('Sesion iniciada correctamente.')
+    toast.success('Sesión iniciada correctamente.')
     navigate('/app/dashboard', { replace: true })
   }
 
   return (
-    <div className="min-h-svh px-4 py-8 sm:px-6 sm:py-10">
-      <div className="mx-auto grid min-h-[calc(100svh-2rem)] max-w-6xl gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <section className="space-y-6">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>Bienvenido</Badge>
-              <Badge variant="outline">Gestion pastoral</Badge>
-            </div>
-            <div className="space-y-3">
-              <h1 className="max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">
-                Una experiencia clara y confiable para organizar la catequesis.
-              </h1>
-              <p className="max-w-2xl text-base text-muted-foreground sm:text-lg">
-                Accede a grupos, alumnos, asistencia y seguimiento desde una interfaz simple, cercana y profesional.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatsCard title="Acompanamiento" value="Grupos" icon={HeartHandshake} helper="Seguimiento cercano" />
-            <StatsCard title="Proteccion" value="Acceso" icon={ShieldCheck} helper="Usuarios autorizados" tone="success" />
-            <StatsCard title="Experiencia" value="Agil" icon={Sparkles} helper="Rapida y ordenada" tone="warning" />
-          </div>
-        </section>
-
-        <AppCard title="Iniciar sesion" description="Ingresa con tu cuenta para acceder al panel de trabajo.">
-          <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+    <div className="flex min-h-svh items-center justify-center px-4 py-6 sm:px-6">
+      <div className="w-full max-w-sm">
+        <AppCard title="Iniciar sesión" description="Ingresa con tu cuenta para acceder al panel de trabajo.">
+          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <AppInput label="Usuario" error={form.formState.errors.username?.message} {...form.register('username')} />
             <AppInput
-              label="Contrasena"
+              label="Contraseña"
               type="password"
               error={form.formState.errors.password?.message}
               {...form.register('password')}

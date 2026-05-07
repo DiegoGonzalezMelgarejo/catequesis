@@ -22,7 +22,7 @@ export function AppLayout() {
   return (
     <div className="min-h-svh">
       <AppHeader title={metadata.title} description={metadata.description} role={user.role} />
-      <main className="mx-auto flex max-w-6xl flex-1 flex-col gap-5 px-3 py-4 pb-28 sm:px-5 sm:py-6 lg:px-6">
+      <main className="mx-auto flex max-w-6xl flex-1 flex-col gap-4 px-3 py-3 pb-28 sm:gap-5 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
         <Outlet />
       </main>
       {!location.pathname.includes('/attendance') ? (
