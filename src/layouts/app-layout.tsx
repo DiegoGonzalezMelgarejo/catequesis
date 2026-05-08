@@ -25,7 +25,7 @@ export function AppLayout() {
   return (
     <div className="min-h-svh">
       <AppHeader title={metadata.title} description={metadata.description} role={user.role} />
-      <main className="mx-auto flex max-w-6xl flex-1 flex-col gap-4 px-3 py-3 pb-28 sm:gap-5 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+      <main className="mx-auto flex max-w-6xl flex-1 flex-col gap-4 px-4 py-4 pb-28 sm:gap-5 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
         <div
           key={`${location.pathname}${location.search}`}
           className="motion-safe:animate-in motion-safe:fade-in-50 motion-safe:slide-in-from-right-1 motion-safe:duration-300"

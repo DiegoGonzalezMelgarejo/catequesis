@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookUser, Edit3, Eye, MoreHorizontal, UserRound, UserRoundX } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { AlertTriangle, BookUser, Edit3, Eye, ListFilter, MoreHorizontal, UserRound, UserRoundX } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { ActionSheet, ActionSheetItem } from '@/components/app/action-sheet'
@@ -15,7 +15,6 @@ import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
 import { ViewModeToggle, type ViewMode } from '@/components/app/view-mode-toggle'
 import { listDocuments } from '@/database/firestore-repository'
 import { StudentForm, type EditableStudent } from '@/features/students/student-form'
@@ -28,6 +27,7 @@ import { getStudentsPage, setStudentActive } from '@/services/student-service'
 
 export function StudentsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
@@ -35,12 +35,13 @@ export function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<EditableStudent | null>(null)
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
   const [actionStudent, setActionStudent] = useState<Awaited<ReturnType<typeof getStudentsPage>>['items'][number] | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window === 'undefined') {
-      return 'cards'
+      return 'list'
     }
 
-    return (window.localStorage.getItem('students-view-mode') as ViewMode | null) ?? 'cards'
+    return (window.localStorage.getItem('students-view-mode') as ViewMode | null) ?? 'list'
   })
 
   useEffect(() => {
@@ -112,6 +113,13 @@ export function StudentsPage() {
     return <PageSkeleton variant="list" />
   }
 
+  const detailState = { from: location.pathname + location.search, label: 'Volver a alumnos' }
+  const primaryGuardianByStudent = new Map(
+    data.guardians
+      .filter((guardian) => guardian.isPrimary)
+      .map((guardian) => [guardian.studentId, guardian]),
+  )
+
   const studentAlerts = data.alerts.filter((alert) => alert.studentId || alert.groupId)
 
   async function handleToggleStudent() {
@@ -133,7 +141,7 @@ export function StudentsPage() {
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem] lg:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-center xl:flex-1">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar alumno" />
-          <select className="h-11 rounded-xl border border-input bg-white px-4 text-sm" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
+          <select className="hidden h-11 rounded-[0.875rem] border border-input bg-white px-4 text-sm sm:block" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
             <option value="">Todos los grupos</option>
             {data.groups.map((group) => (
               <option key={group.id} value={group.id}>
@@ -141,9 +149,13 @@ export function StudentsPage() {
               </option>
               ))}
           </select>
-          <div className="sm:col-span-2 lg:col-span-1">
+          <div className="hidden sm:col-span-2 lg:col-span-1 sm:block">
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
+          <SecondaryButton className="sm:hidden" type="button" onClick={() => setShowFilters(true)}>
+            <ListFilter className="size-4" />
+            Filtros
+          </SecondaryButton>
         </div>
 
         {user.role === 'ADMIN' ? (
@@ -153,169 +165,176 @@ export function StudentsPage() {
         ) : null}
       </div>
 
-      <Tabs defaultValue="students">
-        <TabsList>
-          <TabsTrigger value="students">Listado</TabsTrigger>
-          <TabsTrigger value="alerts">Alertas</TabsTrigger>
-        </TabsList>
+      {studentAlerts.length > 0 ? (
+        <AppCard title="Alertas relacionadas" description="Casos que conviene revisar antes de editar el listado.">
+          <div className="flex items-center justify-between gap-3 rounded-[0.95rem] bg-warning/10 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <div className="rounded-[0.8rem] bg-warning/20 p-2 text-foreground">
+                <AlertTriangle className="size-4" />
+              </div>
+              <div>
+                <p className="font-medium">{studentAlerts.length} alertas en alumnos o grupos</p>
+                <p className="text-sm text-muted-foreground">Abre el centro de alertas para ver prioridad y seguimiento.</p>
+              </div>
+            </div>
+            <SecondaryButton type="button" onClick={() => navigate('/app/alerts')}>
+              Ver alertas
+            </SecondaryButton>
+          </div>
+        </AppCard>
+      ) : null}
 
-        <TabsContent value="students">
-          {filteredStudents.length === 0 ? (
-            <EmptyState title="Sin alumnos" description="No hay alumnos para el filtro actual." icon={BookUser} />
-          ) : (
-            <div className="space-y-4">
-              {viewMode === 'cards' ? (
-                <div className="space-y-3">
-                  {filteredStudents.map((student) => (
-                    <AppCard key={student.id} interactive>
-                      <div className="space-y-3">
-                        <Link
-                          to={`/app/students/${student.id}`}
-                          className="flex items-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3 transition hover:bg-primary/5"
-                        >
-                          <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-base font-semibold text-foreground sm:text-lg">{student.fullName}</p>
-                                <p className="text-xs text-muted-foreground sm:text-sm">{student.groupName} • {student.age} años</p>
-                              </div>
-                              <Badge variant={student.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
-                                {student.active ? 'Activo' : 'Inactivo'}
-                              </Badge>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              <Badge variant={student.active ? 'success' : 'outline'} className="sm:hidden">
-                                {student.active ? 'Activo' : 'Inactivo'}
-                              </Badge>
-                              <Badge variant="outline">{student.guardianCount} acudientes</Badge>
-                              <Badge variant="outline">{student.sacramentCount} sacramentos</Badge>
-                            </div>
+      {filteredStudents.length === 0 ? (
+        <EmptyState title="Sin alumnos" description="No hay alumnos para el filtro actual." icon={BookUser} />
+      ) : (
+        <div className="space-y-4">
+          {viewMode === 'cards' ? (
+            <div className="space-y-3">
+              {filteredStudents.map((student) => (
+                <AppCard key={student.id} interactive>
+                  <div className="space-y-3">
+                    <Link
+                      to={`/app/students/${student.id}`}
+                      state={detailState}
+                      className="flex items-center gap-3 rounded-[0.95rem] bg-secondary/35 p-3 transition hover:bg-secondary/55"
+                    >
+                      <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-foreground sm:text-lg">{student.fullName}</p>
+                            <p className="text-xs text-muted-foreground sm:text-sm">{student.groupName} • {student.age} años</p>
                           </div>
-                        </Link>
-
-                        <div className="rounded-[1.1rem] border border-white/70 bg-white/70 px-3 py-2 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">Observación:</span>{' '}
-                          {student.observations || 'Sin observaciones registradas.'}
+                          <Badge variant={student.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
+                            {student.active ? 'Activo' : 'Inactivo'}
+                          </Badge>
                         </div>
-
-                        <div className="flex items-center justify-end">
-                          <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
-                            <MoreHorizontal className="size-4" />
-                          </SecondaryButton>
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
+                          <Badge variant={student.active ? 'success' : 'outline'} className="sm:hidden">
+                            {student.active ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                          <span>{student.groupName}</span>
+                          <span>{student.age} años</span>
                         </div>
                       </div>
-                    </AppCard>
-                  ))}
-                </div>
-              ) : null}
+                    </Link>
 
-              {viewMode === 'list' ? (
-                <AppCard>
-                  <div className="divide-y divide-border/70">
-                    {filteredStudents.map((student) => (
-                      <div key={student.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                        <button
-                          type="button"
-                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                          onClick={() => navigate(`/app/students/${student.id}`)}
-                        >
-                          <EntityAvatar icon={UserRound} label={student.fullName} className="size-12" />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold">{student.fullName}</p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {student.groupName} • {student.age} años • {student.guardianCount} acudientes
-                            </p>
-                          </div>
-                        </button>
-                        <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
+                    <div className="rounded-[0.95rem] bg-secondary/45 px-3 py-2 text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">Acudiente principal:</span>{' '}
+                      {primaryGuardianByStudent.get(student.id)?.name ?? 'Sin registrar'}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        {student.sacramentCount} sacramentos • {student.guardianCount} acudientes
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <SecondaryButton asChild>
+                          <Link to={`/app/students/${student.id}`} state={detailState}>
+                            Abrir
+                          </Link>
+                        </SecondaryButton>
                         <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
                           <MoreHorizontal className="size-4" />
                         </SecondaryButton>
                       </div>
-                    ))}
-                  </div>
-                </AppCard>
-              ) : null}
-
-              {viewMode === 'table' ? (
-                <AppCard>
-                  <div className="no-scrollbar overflow-x-auto">
-                    <table className="min-w-[48rem] w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/70 text-left text-muted-foreground">
-                          <th className="px-3 py-3 font-medium">Alumno</th>
-                          <th className="px-3 py-3 font-medium">Grupo</th>
-                          <th className="px-3 py-3 font-medium">Edad</th>
-                          <th className="px-3 py-3 font-medium">Acudientes</th>
-                          <th className="px-3 py-3 font-medium">Sacramentos</th>
-                          <th className="px-3 py-3 font-medium">Estado</th>
-                          <th className="px-3 py-3 font-medium text-right">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredStudents.map((student) => (
-                          <tr key={student.id} className="border-b border-border/40">
-                            <td className="px-3 py-3">
-                              <button type="button" className="font-medium text-left hover:text-primary" onClick={() => navigate(`/app/students/${student.id}`)}>
-                                {student.fullName}
-                              </button>
-                            </td>
-                            <td className="px-3 py-3 text-muted-foreground">{student.groupName}</td>
-                            <td className="px-3 py-3">{student.age}</td>
-                            <td className="px-3 py-3">{student.guardianCount}</td>
-                            <td className="px-3 py-3">{student.sacramentCount}</td>
-                            <td className="px-3 py-3">
-                              <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
-                                <MoreHorizontal className="size-4" />
-                              </SecondaryButton>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </AppCard>
-              ) : null}
-
-              <PaginationControls
-                page={page}
-                pageSize={pageSize}
-                hasNext={hasNext}
-                hasPrevious={hasPrevious}
-                label="Alumnos"
-                onNext={goNext}
-                onPrevious={goPrevious}
-              />
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="alerts">
-          {studentAlerts.length === 0 ? (
-            <EmptyState title="Sin alertas" description="No hay alertas relacionadas con alumnos o grupos." icon={BookUser} />
-          ) : (
-            <div className="space-y-3">
-              {studentAlerts.map((alert) => (
-                <AppCard key={alert.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{alert.title}</p>
-                      <p className="mt-2 text-sm text-muted-foreground">{alert.description}</p>
                     </div>
-                    <Badge variant={alert.severity === 'high' ? 'destructive' : alert.severity === 'medium' ? 'warning' : 'secondary'}>
-                      {alert.severity}
-                    </Badge>
                   </div>
                 </AppCard>
               ))}
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          ) : null}
+
+          {viewMode === 'list' ? (
+            <AppCard title="Listado de alumnos" description="Vista simple para encontrar un alumno y abrir su ficha.">
+              <div className="divide-y divide-border/70">
+                {filteredStudents.map((student) => (
+                  <div key={student.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <EntityAvatar icon={UserRound} label={student.fullName} className="size-12" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <p className="truncate font-semibold">{student.fullName}</p>
+                          <Badge variant={student.active ? 'success' : 'outline'} className="shrink-0">{student.active ? 'Activo' : 'Inactivo'}</Badge>
+                        </div>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {student.groupName} • {student.age} años
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          Acudiente: {primaryGuardianByStudent.get(student.id)?.name ?? 'Sin registrar'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <SecondaryButton asChild>
+                        <Link to={`/app/students/${student.id}`} state={detailState}>
+                          Abrir
+                        </Link>
+                      </SecondaryButton>
+                      <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
+                        <MoreHorizontal className="size-4" />
+                      </SecondaryButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </AppCard>
+          ) : null}
+
+          {viewMode === 'table' ? (
+            <AppCard>
+              <div className="no-scrollbar overflow-x-auto">
+                <table className="min-w-[48rem] w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-3 py-3 font-medium">Alumno</th>
+                      <th className="px-3 py-3 font-medium">Grupo</th>
+                      <th className="px-3 py-3 font-medium">Edad</th>
+                      <th className="px-3 py-3 font-medium">Acudientes</th>
+                      <th className="px-3 py-3 font-medium">Sacramentos</th>
+                      <th className="px-3 py-3 font-medium">Estado</th>
+                      <th className="px-3 py-3 font-medium text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id} className="border-b border-border/40">
+                        <td className="px-3 py-3">
+                          <button type="button" className="font-medium text-left hover:text-primary" onClick={() => navigate(`/app/students/${student.id}`, { state: detailState })}>
+                            {student.fullName}
+                          </button>
+                        </td>
+                        <td className="px-3 py-3 text-muted-foreground">{student.groupName}</td>
+                        <td className="px-3 py-3">{student.age}</td>
+                        <td className="px-3 py-3">{student.guardianCount}</td>
+                        <td className="px-3 py-3">{student.sacramentCount}</td>
+                        <td className="px-3 py-3">
+                          <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
+                            <MoreHorizontal className="size-4" />
+                          </SecondaryButton>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </AppCard>
+          ) : null}
+
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            hasNext={hasNext}
+            hasPrevious={hasPrevious}
+            label="Alumnos"
+            onNext={goNext}
+            onPrevious={goPrevious}
+          />
+        </div>
+      )}
 
       {user.role === 'ADMIN' ? (
         <MobilePageActionBar>
@@ -353,6 +372,31 @@ export function StudentsPage() {
       />
 
       <ActionSheet
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        title="Filtros del listado"
+        description="Ajusta el grupo y la vista para revisar mejor a tus alumnos."
+      >
+        <div className="space-y-4 px-1 pb-1">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Grupo</label>
+            <select className="h-11 w-full rounded-[0.875rem] border border-input bg-white px-4 text-sm" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
+              <option value="">Todos los grupos</option>
+              {data.groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Vista</label>
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
+        </div>
+      </ActionSheet>
+
+      <ActionSheet
         open={Boolean(actionStudent)}
         onOpenChange={(open) => {
           if (!open) {
@@ -367,7 +411,7 @@ export function StudentsPage() {
           icon={Eye}
           onClick={() => {
             if (!actionStudent) return
-            navigate(`/app/students/${actionStudent.id}`)
+            navigate(`/app/students/${actionStudent.id}`, { state: detailState })
           }}
         />
         {user.role === 'ADMIN' ? (

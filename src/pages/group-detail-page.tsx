@@ -2,23 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   BookUser,
   CalendarDays,
-  CheckCheck,
   ClipboardCheck,
   Download,
   Eye,
-  GraduationCap,
   Layers3,
   NotebookPen,
   Printer,
   UserRound,
   Users,
 } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { AppCard } from '@/components/app/app-card'
 import { Badge } from '@/components/app/badge'
-import { CollapsibleSection } from '@/components/app/collapsible-section'
 import { EmptyState } from '@/components/app/empty-state'
 import { EntityAvatar } from '@/components/app/entity-avatar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
@@ -29,10 +26,11 @@ import { SummaryCard } from '@/components/app/summary-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useAuth } from '@/hooks/use-auth'
+import { useBackNavigation } from '@/hooks/use-back-navigation'
 import { getGroupDetail } from '@/services/group-service'
 import type { AttendanceStatus } from '@/types/models'
 import { exportCsvFile } from '@/utils/csv'
-import { formatDate, formatRelativeDate } from '@/utils/date'
+import { formatDate } from '@/utils/date'
 import {
   exportAttendanceMatrixPdf,
   exportGradesMatrixPdf,
@@ -40,15 +38,12 @@ import {
   printGroupReport,
 } from '@/utils/group-report'
 
-const attendanceVariant = {
-  PRESENTE: 'success',
-  AUSENTE: 'destructive',
-  JUSTIFICADO: 'warning',
-} as const
-
 export function GroupDetailPage() {
   const { user } = useAuth()
   const { groupId } = useParams()
+  const location = useLocation()
+  const { backLabel, backTo } = useBackNavigation('/app/groups', 'Volver a grupos')
+  const detailState = { from: location.pathname + location.search, label: 'Volver al grupo' }
   const [studentSearch, setStudentSearch] = useState('')
   const [attendanceSearch, setAttendanceSearch] = useState('')
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<'ALL' | AttendanceStatus>('ALL')
@@ -183,13 +178,13 @@ export function GroupDetailPage() {
     <div className="space-y-4 sm:space-y-6">
       <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
         <SecondaryButton asChild>
-          <Link to="/app/groups">Volver a grupos</Link>
+          <Link to={backTo}>{backLabel}</Link>
         </SecondaryButton>
         <SecondaryButton asChild>
-          <Link to={`/app/attendance/session?groupId=${detail.id}&mode=new`}>Nueva toma de asistencia</Link>
+          <Link to={`/app/attendance/session?groupId=${detail.id}&mode=new`} state={{ from: location.pathname + location.search, label: 'Volver al grupo' }}>Nueva toma de asistencia</Link>
         </SecondaryButton>
         <SecondaryButton asChild>
-          <Link to={`/app/activities?groupId=${detail.id}`}>Ver actividades</Link>
+          <Link to={`/app/activities?groupId=${detail.id}`} state={{ from: location.pathname + location.search, label: 'Volver al grupo' }}>Ver actividades</Link>
         </SecondaryButton>
         <SecondaryButton
           type="button"
@@ -255,9 +250,9 @@ export function GroupDetailPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <SummaryCard title="Alumnos activos" value={detail.studentCount} icon={BookUser} />
+            <SummaryCard title="Alumnos" value={detail.studentCount} icon={BookUser} />
             <SummaryCard title="Catequistas" value={detail.catechists.length} icon={Users} />
-            <SummaryCard title="Jornadas" value={detail.attendanceSessions.length} icon={ClipboardCheck} />
+            <SummaryCard title="Asistencias" value={detail.attendanceSessions.length} icon={ClipboardCheck} />
             <SummaryCard title="Actividades" value={detail.activityCount} icon={NotebookPen} />
           </div>
         </div>
@@ -265,11 +260,10 @@ export function GroupDetailPage() {
 
       <Tabs defaultValue="students">
         <TabsList>
-          <TabsTrigger value="students">Alumnos</TabsTrigger>
+          <TabsTrigger value="students">Lista de alumnos</TabsTrigger>
           <TabsTrigger value="attendance">Asistencia por fecha</TabsTrigger>
-          <TabsTrigger value="grades-table">Notas por alumno</TabsTrigger>
-          <TabsTrigger value="attendance-table">Asistencias por alumno</TabsTrigger>
-          <TabsTrigger value="summary">Resumen</TabsTrigger>
+          <TabsTrigger value="grades-table">Notas de actividades</TabsTrigger>
+          <TabsTrigger value="attendance-table">Reporte del grupo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="students">
@@ -298,7 +292,7 @@ export function GroupDetailPage() {
                     {pagedStudents.map((student) => (
                       <AppCard key={student.id} interactive>
                         <div className="space-y-4">
-                          <div className="flex items-start gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3.5">
+                           <div className="flex items-start gap-3 rounded-[0.95rem] bg-secondary/35 p-3.5">
                             <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
@@ -314,52 +308,40 @@ export function GroupDetailPage() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
-                              <p className="text-muted-foreground">Acudiente principal</p>
-                              <p className="mt-1 font-medium">
-                                {student.primaryGuardianName || 'Sin acudiente'}
-                              </p>
-                              <p className="mt-1 text-muted-foreground">
-                                {student.primaryGuardianPhone || 'Sin contacto'}
-                              </p>
-                            </div>
-                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
-                              <p className="text-muted-foreground">Sacramentos</p>
-                              <p className="mt-1 font-medium">{student.sacramentCount}</p>
-                              <p className="mt-1 text-muted-foreground">
-                                {student.guardianCount} acudientes registrados
-                              </p>
-                            </div>
-                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
-                              <p className="text-muted-foreground">Asistencia</p>
-                              <p className="mt-1 font-medium">{student.attendanceRate.toFixed(0)}%</p>
-                              <p className="mt-1 text-muted-foreground">
-                                {student.absenceCount} faltas acumuladas
-                              </p>
-                            </div>
-                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
-                              <p className="text-muted-foreground">Última asistencia</p>
-                              <p className="mt-1 font-medium">
-                                {student.lastAttendanceDate ? formatDate(student.lastAttendanceDate) : 'Sin registro'}
-                              </p>
-                              {student.lastAttendanceStatus ? (
-                                <Badge
-                                  variant={attendanceVariant[student.lastAttendanceStatus]}
-                                  className="mt-2"
-                                >
-                                  {student.lastAttendanceStatus}
-                                </Badge>
-                              ) : null}
-                            </div>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+                             <div className="min-w-0 rounded-[0.95rem] bg-secondary/45 p-3 text-xs sm:p-4 sm:text-sm">
+                               <p className="text-muted-foreground">Acudiente principal</p>
+                               <p className="mt-1 break-words font-medium">
+                                 {student.primaryGuardianName || 'Sin acudiente'}
+                               </p>
+                               <p className="mt-1 break-words text-muted-foreground">
+                                 {student.primaryGuardianPhone || 'Sin contacto'}
+                               </p>
+                             </div>
+                             <div className="min-w-0 rounded-[0.95rem] bg-secondary/45 p-3 text-xs sm:p-4 sm:text-sm">
+                               <p className="text-muted-foreground">Asistencia</p>
+                               <p className="mt-1 font-medium">{student.attendanceRate.toFixed(0)}%</p>
+                               <p className="mt-1 break-words text-muted-foreground">
+                                 {student.absenceCount} faltas acumuladas
+                               </p>
+                             </div>
+                             <div className="min-w-0 rounded-[0.95rem] bg-secondary/45 p-3 text-xs sm:p-4 sm:text-sm">
+                               <p className="text-muted-foreground">Última asistencia</p>
+                               <p className="mt-1 break-words font-medium">
+                                 {student.lastAttendanceDate ? formatDate(student.lastAttendanceDate) : 'Sin registro'}
+                               </p>
+                               <p className="mt-1 break-words text-muted-foreground">
+                                 {student.sacramentCount} sacramentos • {student.guardianCount} acudientes
+                               </p>
+                             </div>
                           </div>
 
                           <div className="flex flex-wrap items-center justify-between gap-3">
-                            <p className="max-w-xl text-xs text-muted-foreground sm:text-sm">
+                            <p className="max-w-xl break-words text-xs text-muted-foreground sm:text-sm">
                               {student.observations || 'Sin observaciones registradas.'}
                             </p>
                             <SecondaryButton asChild>
-                              <Link to={`/app/students/${student.id}`}>
+                              <Link to={`/app/students/${student.id}`} state={detailState}>
                                 <Eye className="size-4" />
                                 Ver alumno
                               </Link>
@@ -413,9 +395,9 @@ export function GroupDetailPage() {
                         key={option.key}
                         type="button"
                         className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
-                          active
-                            ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                            : 'border-white/70 bg-white text-muted-foreground hover:bg-secondary/70'
+                           active
+                             ? 'border-border bg-secondary text-foreground'
+                             : 'border-border/80 bg-white text-muted-foreground hover:bg-secondary/70'
                         }`}
                         onClick={() =>
                           setAttendanceStatusFilter(option.key as 'ALL' | AttendanceStatus)
@@ -435,60 +417,28 @@ export function GroupDetailPage() {
                   icon={CalendarDays}
                 />
               ) : (
-                pagedAttendanceSessions.map((session) => (
-                <AppCard key={session.id}>
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-lg font-semibold">{formatDate(session.date, 'EEEE dd MMM yyyy')}</p>
-                          <Badge variant="secondary">{session.records.length} registros</Badge>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          {session.notes || 'Sin observaciones generales para esta jornada.'}
-                        </p>
-                      </div>
-                      <SecondaryButton asChild>
-                        <Link to={`/app/attendance/session?groupId=${detail.id}&date=${session.date}&mode=edit`}>
-                          Editar asistencia
-                        </Link>
-                      </SecondaryButton>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-[1.25rem] border border-success/20 bg-success/10 p-4 text-sm text-success">
-                        <p className="text-muted-foreground">Presentes</p>
-                        <p className="mt-1 font-medium">{session.counts.presentes}</p>
-                      </div>
-                      <div className="rounded-[1.25rem] border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
-                        <p className="text-muted-foreground">Ausentes</p>
-                        <p className="mt-1 font-medium">{session.counts.ausentes}</p>
-                      </div>
-                      <div className="rounded-[1.25rem] border border-warning/25 bg-warning/15 p-4 text-sm text-foreground">
-                        <p className="text-muted-foreground">Justificados</p>
-                        <p className="mt-1 font-medium">{session.counts.justificados}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 xl:grid-cols-2">
-                      {session.records.map((record) => (
-                        <div
-                          key={`${session.id}-${record.studentId}`}
-                          className="rounded-[1.5rem] border border-white/70 bg-white p-4"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium">{record.studentName}</p>
-                            <Badge variant={attendanceVariant[record.status]}>{record.status}</Badge>
+                <AppCard>
+                  <div className="divide-y divide-border/70">
+                    {pagedAttendanceSessions.map((session) => (
+                      <div key={session.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold">{formatDate(session.date, 'dd MMM yyyy')}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {session.counts.presentes} presentes • {session.counts.ausentes} ausentes • {session.counts.justificados} justificados
+                            </p>
+                            {session.notes ? <p className="mt-1 text-xs text-muted-foreground">{session.notes}</p> : null}
                           </div>
-                          {record.observations ? (
-                            <p className="mt-2 text-sm text-muted-foreground">{record.observations}</p>
-                          ) : null}
+                          <SecondaryButton asChild>
+                            <Link to={`/app/attendance/session?groupId=${detail.id}&date=${session.date}&mode=edit`} state={detailState}>
+                              Abrir
+                            </Link>
+                          </SecondaryButton>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </AppCard>
-                ))
               )}
 
               {filteredAttendanceSessions.length > 0 ? (
@@ -506,90 +456,6 @@ export function GroupDetailPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="summary">
-          <div className="space-y-3">
-            <CollapsibleSection title="Equipo asignado" description="Catequistas vinculados a este grupo." defaultOpen>
-              <div className="flex flex-wrap gap-2">
-                {detail.catechists.length === 0 ? (
-                  <Badge variant="outline">Sin catequistas</Badge>
-                ) : (
-                  detail.catechists.map((catechist) => (
-                    <Badge key={catechist} variant="secondary">
-                      {catechist}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Última jornada" description="Referencia rápida del último encuentro registrado.">
-              {detail.lastAttendanceDate ? (
-                <div className="space-y-2">
-                  <Badge>{formatDate(detail.lastAttendanceDate)}</Badge>
-                  <p className="text-sm text-muted-foreground">
-                    Última jornada registrada {formatRelativeDate(`${detail.lastAttendanceDate}T12:00:00`)}.
-                  </p>
-                </div>
-              ) : (
-                <EmptyState
-                  title="Sin jornadas"
-                  description="Aún no hay asistencia registrada para este grupo."
-                  icon={CheckCheck}
-                />
-              )}
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Actividades recientes" description="Últimas actividades vinculadas al grupo.">
-              <div className="space-y-3">
-                {detail.recentActivities.length === 0 ? (
-                  <EmptyState
-                    title="Sin actividades"
-                    description="No hay actividades registradas para este grupo."
-                    icon={GraduationCap}
-                  />
-                ) : (
-                  detail.recentActivities.map((activity) => (
-                    <div key={activity.id} className="rounded-3xl border bg-secondary/30 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{activity.title}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(activity.date)} • {activity.type}
-                          </p>
-                        </div>
-                        <Badge variant={activity.active ? 'default' : 'outline'}>
-                          {activity.maxGrade} max
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Seguimiento del grupo" description="Estado actual del grupo para la operación diaria.">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                  <p className="text-muted-foreground">Alumnos activos</p>
-                  <p className="mt-1 font-medium">{detail.studentCount}</p>
-                </div>
-                <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                  <p className="text-muted-foreground">Actividades pendientes</p>
-                  <p className="mt-1 font-medium">{detail.pendingActivities}</p>
-                </div>
-                <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                  <p className="text-muted-foreground">Jornadas registradas</p>
-                  <p className="mt-1 font-medium">{detail.attendanceSessions.length}</p>
-                </div>
-                <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                  <p className="text-muted-foreground">Catequistas asignados</p>
-                  <p className="mt-1 font-medium">{detail.catechists.length}</p>
-                </div>
-              </div>
-            </CollapsibleSection>
-          </div>
-        </TabsContent>
-
         <TabsContent value="grades-table">
           <AppCard
             title="Matriz de calificaciones por alumno"
@@ -599,9 +465,9 @@ export function GroupDetailPage() {
                 <button
                   type="button"
                   className={`rounded-full border px-3 py-2 text-xs font-medium transition ${
-                    gradesScope === 'recent'
-                      ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                      : 'border-white/70 bg-white text-muted-foreground'
+                     gradesScope === 'recent'
+                       ? 'border-border bg-secondary text-foreground'
+                       : 'border-border/80 bg-white text-muted-foreground'
                   }`}
                   onClick={() => setGradesScope('recent')}
                 >
@@ -610,9 +476,9 @@ export function GroupDetailPage() {
                 <button
                   type="button"
                   className={`rounded-full border px-3 py-2 text-xs font-medium transition ${
-                    gradesScope === 'all'
-                      ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                      : 'border-white/70 bg-white text-muted-foreground'
+                     gradesScope === 'all'
+                       ? 'border-border bg-secondary text-foreground'
+                       : 'border-border/80 bg-white text-muted-foreground'
                   }`}
                   onClick={() => setGradesScope('all')}
                 >
@@ -717,9 +583,9 @@ export function GroupDetailPage() {
                 <button
                   type="button"
                   className={`rounded-full border px-3 py-2 text-xs font-medium transition ${
-                    attendanceScope === 'recent'
-                      ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                      : 'border-white/70 bg-white text-muted-foreground'
+                     attendanceScope === 'recent'
+                       ? 'border-border bg-secondary text-foreground'
+                       : 'border-border/80 bg-white text-muted-foreground'
                   }`}
                   onClick={() => setAttendanceScope('recent')}
                 >
@@ -728,9 +594,9 @@ export function GroupDetailPage() {
                 <button
                   type="button"
                   className={`rounded-full border px-3 py-2 text-xs font-medium transition ${
-                    attendanceScope === 'all'
-                      ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                      : 'border-white/70 bg-white text-muted-foreground'
+                     attendanceScope === 'all'
+                       ? 'border-border bg-secondary text-foreground'
+                       : 'border-border/80 bg-white text-muted-foreground'
                   }`}
                   onClick={() => setAttendanceScope('all')}
                 >

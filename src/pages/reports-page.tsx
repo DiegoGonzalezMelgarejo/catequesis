@@ -1,4 +1,4 @@
-import { ChartColumn, Download, FileText, Share2, TriangleAlert } from 'lucide-react'
+import { ChartColumn, Download, Share2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AppCard } from '@/components/app/app-card'
@@ -113,7 +113,7 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard title="Grupos" value={report.totalGroups} icon={ChartColumn} />
         <SummaryCard title="Alumnos" value={report.totalStudents} icon={ChartColumn} />
@@ -144,98 +144,87 @@ export function ReportsPage() {
             {data.report.rows.length === 0 ? (
               <EmptyState title="Sin datos" description="Aún no hay grupos con información suficiente." icon={ChartColumn} />
             ) : (
-              report.rows.map((row) => (
-                <AppCard key={row.groupId}>
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-semibold">{row.groupName}</p>
-                        <p className="text-sm text-muted-foreground">{row.catechists}</p>
-                      </div>
-                      <Badge>{row.students} alumnos</Badge>
-                    </div>
-                    {user.role === 'ADMIN' ? (
-                      <div className="flex flex-wrap gap-2">
-                        <PrimaryButton type="button" onClick={() => void handleExportGroupAttendancePdf(row.groupId)}>
-                          <FileText className="size-4" />
-                          PDF asistencias
-                        </PrimaryButton>
-                        <PrimaryButton type="button" onClick={() => void handleExportGroupGradesPdf(row.groupId)}>
-                          <FileText className="size-4" />
-                          PDF notas
-                        </PrimaryButton>
-                      </div>
-                    ) : null}
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-3xl bg-secondary/35 p-4 text-sm">
-                        <p className="text-muted-foreground">Asistencia</p>
-                        <p className="mt-1 font-medium">{row.attendanceRate.toFixed(1)}%</p>
-                      </div>
-                      <div className="rounded-3xl bg-secondary/35 p-4 text-sm">
-                        <p className="text-muted-foreground">Promedio</p>
-                        <p className="mt-1 font-medium">{row.averageGrade.toFixed(1)}</p>
-                      </div>
-                      <div className="rounded-3xl bg-secondary/35 p-4 text-sm">
-                        <p className="text-muted-foreground">Pendientes</p>
-                        <p className="mt-1 font-medium">{row.pendingActivities}</p>
+              <AppCard title="Listado de grupos" description="Vista simple del estado general de cada grupo.">
+                <div className="divide-y divide-border/70">
+                  {report.rows.map((row) => (
+                    <div key={row.groupId} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold">{row.groupName}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{row.catechists}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {row.students} alumnos • Asistencia {row.attendanceRate.toFixed(1)}% • Promedio {row.averageGrade.toFixed(1)} • Pendientes {row.pendingActivities}
+                          </p>
+                        </div>
+                        {user.role === 'ADMIN' ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <SecondaryButton type="button" onClick={() => void handleExportGroupAttendancePdf(row.groupId)}>
+                              PDF asistencia
+                            </SecondaryButton>
+                            <SecondaryButton type="button" onClick={() => void handleExportGroupGradesPdf(row.groupId)}>
+                              PDF notas
+                            </SecondaryButton>
+                          </div>
+                        ) : (
+                          <Badge>{row.students} alumnos</Badge>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </AppCard>
-              ))
+                  ))}
+                </div>
+              </AppCard>
             )}
           </div>
         </TabsContent>
 
         <TabsContent value="attendance">
-          <div className="space-y-3">
-            {report.rows.map((row) => (
-              <AppCard key={`${row.groupId}-attendance`}>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-medium">{row.groupName}</p>
-                    <p className="text-sm text-muted-foreground">{row.students} alumnos registrados</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">{row.attendanceRate.toFixed(1)}%</Badge>
-                    {user.role === 'ADMIN' ? (
-                      <>
+          <AppCard title="Asistencia por grupo" description="Vista compacta para exportar o revisar rápidamente.">
+            <div className="divide-y divide-border/70">
+              {report.rows.map((row) => (
+                <div key={`${row.groupId}-attendance`} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{row.groupName}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {row.students} alumnos • Asistencia {row.attendanceRate.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{row.attendanceRate.toFixed(1)}%</Badge>
+                      {user.role === 'ADMIN' ? (
                         <SecondaryButton type="button" onClick={() => void handleExportGroupAttendancePdf(row.groupId)}>
-                          <Download className="size-4" />
-                          PDF asistencias
+                          PDF
                         </SecondaryButton>
-                        <SecondaryButton type="button" onClick={() => void handleExportGroupGradesPdf(row.groupId)}>
-                          <Download className="size-4" />
-                          PDF notas
-                        </SecondaryButton>
-                      </>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </AppCard>
-            ))}
-          </div>
+              ))}
+            </div>
+          </AppCard>
         </TabsContent>
 
         <TabsContent value="alerts">
           {alerts.length === 0 ? (
             <EmptyState title="Sin alertas" description="No hay alertas activas para exportar." icon={TriangleAlert} />
           ) : (
-            <div className="space-y-3">
-              {alerts.map((alert) => (
-                <AppCard key={alert.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{alert.title}</p>
-                      <p className="mt-2 text-sm text-muted-foreground">{alert.description}</p>
+            <AppCard title="Listado de alertas" description="Vista simple para revisar y exportar alertas activas.">
+              <div className="divide-y divide-border/70">
+                {alerts.map((alert) => (
+                  <div key={alert.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{alert.title}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{alert.description}</p>
+                      </div>
+                      <Badge variant={alert.severity === 'high' ? 'destructive' : alert.severity === 'medium' ? 'warning' : 'secondary'}>
+                        {alert.severity}
+                      </Badge>
                     </div>
-                    <Badge variant={alert.severity === 'high' ? 'destructive' : alert.severity === 'medium' ? 'warning' : 'secondary'}>
-                      {alert.severity}
-                    </Badge>
                   </div>
-                </AppCard>
-              ))}
-            </div>
+                ))}
+              </div>
+            </AppCard>
           )}
         </TabsContent>
       </Tabs>

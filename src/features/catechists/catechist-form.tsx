@@ -100,18 +100,25 @@ export function CatechistForm({ open, onOpenChange, catechist }: CatechistFormPr
       }
     >
       <form id="catechist-form" className="space-y-5" onSubmit={submitForm}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <AppInput label="Nombre completo" error={form.formState.errors.fullName?.message} {...form.register('fullName')} />
-          <AppInput label="Usuario" error={form.formState.errors.username?.message} {...form.register('username')} />
-          <AppInput
-            label={isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}
-            type="password"
-            error={form.formState.errors.password?.message}
-            {...form.register('password')}
-          />
-          <AppInput label="Teléfono" {...form.register('phone')} />
-          <div className="sm:col-span-2">
-            <AppInput label="Correo" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
+        <div className="rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
+          <div className="mb-4">
+            <p className="font-medium">Datos del catequista</p>
+            <p className="text-sm text-muted-foreground">Registra identidad, acceso y canales de contacto del responsable.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AppInput label="Nombre completo" error={form.formState.errors.fullName?.message} {...form.register('fullName')} />
+            <AppInput label="Usuario" hint="Se usa para iniciar sesión." error={form.formState.errors.username?.message} {...form.register('username')} />
+            <AppInput
+              label={isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+              type="password"
+              hint={isEditing ? 'Déjala vacía si no deseas cambiarla.' : undefined}
+              error={form.formState.errors.password?.message}
+              {...form.register('password')}
+            />
+            <AppInput label="Teléfono" {...form.register('phone')} />
+            <div className="sm:col-span-2">
+              <AppInput label="Correo" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
+            </div>
           </div>
         </div>
       </form>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Edit3, MoreHorizontal, UserPlus, UserRound, UserRoundX } from 'lucide-react'
+import { Edit3, ListFilter, MoreHorizontal, UserPlus, UserRound, UserRoundX } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { ActionSheet, ActionSheetItem } from '@/components/app/action-sheet'
@@ -28,18 +29,21 @@ import {
 } from '@/services/user-service'
 
 export function CatechistsPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [openForm, setOpenForm] = useState(false)
   const [selectedCatechist, setSelectedCatechist] = useState<EditableCatechist | null>(null)
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
   const [actionCatechist, setActionCatechist] = useState<CatechistOverview | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window === 'undefined') {
-      return 'cards'
+      return 'list'
     }
 
-    return (window.localStorage.getItem('catechists-view-mode') as ViewMode | null) ?? 'cards'
+    return (window.localStorage.getItem('catechists-view-mode') as ViewMode | null) ?? 'list'
   })
 
   useEffect(() => {
@@ -118,12 +122,20 @@ export function CatechistsPage() {
     }
   }
 
+  const detailState = { from: location.pathname + location.search, label: 'Volver a catequistas' }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-3 sm:flex-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar catequista" />
-          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          <div className="hidden sm:block">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
+          <SecondaryButton className="sm:hidden" type="button" onClick={() => setShowFilters(true)}>
+            <ListFilter className="size-4" />
+            Vista
+          </SecondaryButton>
         </div>
         <PrimaryButton
           className="hidden sm:inline-flex"
@@ -148,10 +160,10 @@ export function CatechistsPage() {
                 return (
                   <AppCard key={catechist.id} interactive>
                     <div className="space-y-3">
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3 text-left transition hover:bg-primary/5"
-                        onClick={() => openCatechistEditor(catechist)}
+                      <Link
+                        to={`/app/catechists/${catechist.id}`}
+                        state={detailState}
+                        className="flex w-full items-center gap-3 rounded-[0.95rem] bg-secondary/35 p-3 text-left transition hover:bg-secondary/55"
                       >
                         <EntityAvatar icon={UserRound} label={catechist.fullName} className="size-14 sm:size-16" />
                         <div className="min-w-0 flex-1">
@@ -164,25 +176,33 @@ export function CatechistsPage() {
                               {catechist.active ? 'Activo' : 'Inactivo'}
                             </Badge>
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
+                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
                             <Badge variant={catechist.active ? 'success' : 'outline'} className="sm:hidden">
                               {catechist.active ? 'Activo' : 'Inactivo'}
                             </Badge>
-                            <Badge variant="outline">{catechist.groupCount} grupos</Badge>
-                            {catechist.phone ? <Badge variant="outline">{catechist.phone}</Badge> : null}
+                            <span>{catechist.groupCount} grupos</span>
+                            <span>{catechist.email || catechist.phone || 'Sin contacto'}</span>
                           </div>
                         </div>
-                      </button>
+                      </Link>
 
-                      <div className="rounded-[1.1rem] border border-white/70 bg-white/70 px-3 py-2 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">Asignaciones:</span>{' '}
-                        {catechist.groupNames.join(', ') || 'Sin asignar'}
+                    <div className="rounded-[0.95rem] bg-secondary/45 px-3 py-2 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">Grupo principal:</span>{' '}
+                        {catechist.groupNames[0] || 'Sin asignar'}
                       </div>
 
-                      <div className="flex items-center justify-end">
-                        <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
-                          <MoreHorizontal className="size-4" />
-                        </SecondaryButton>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs text-muted-foreground">{catechist.groupCount} grupos asignados</p>
+                        <div className="flex items-center gap-2">
+                          <SecondaryButton asChild>
+                            <Link to={`/app/catechists/${catechist.id}`} state={detailState}>
+                              Abrir
+                            </Link>
+                          </SecondaryButton>
+                          <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
+                            <MoreHorizontal className="size-4" />
+                          </SecondaryButton>
+                        </div>
                       </div>
                     </div>
                   </AppCard>
@@ -192,29 +212,35 @@ export function CatechistsPage() {
           ) : null}
 
           {viewMode === 'list' ? (
-            <AppCard>
+            <AppCard title="Listado de catequistas" description="Vista simple para ubicar un catequista y abrir su ficha.">
               <div className="divide-y divide-border/70">
                 {filteredCatechists.map((catechist) => (
                   <div key={catechist.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                      onClick={() => {
-                        openCatechistEditor(catechist)
-                      }}
-                    >
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <EntityAvatar icon={UserRound} label={catechist.fullName} className="size-12" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">{catechist.fullName}</p>
+                        <div className="flex items-start gap-2">
+                          <p className="truncate font-semibold">{catechist.fullName}</p>
+                          <Badge variant={catechist.active ? 'success' : 'outline'} className="shrink-0">{catechist.active ? 'Activo' : 'Inactivo'}</Badge>
+                        </div>
+                        <p className="truncate text-sm text-muted-foreground">
+                          @{catechist.username} • {catechist.groupCount} grupos
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          @{catechist.username} • {catechist.groupCount} grupos • {catechist.email || catechist.phone || 'Sin contacto'}
+                          Contacto: {catechist.email || catechist.phone || 'Sin registrar'}
                         </p>
                       </div>
-                    </button>
-                    <Badge variant={catechist.active ? 'success' : 'outline'}>{catechist.active ? 'Activo' : 'Inactivo'}</Badge>
-                    <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
-                      <MoreHorizontal className="size-4" />
-                    </SecondaryButton>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <SecondaryButton asChild>
+                        <Link to={`/app/catechists/${catechist.id}`} state={detailState}>
+                          Abrir
+                        </Link>
+                      </SecondaryButton>
+                      <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
+                        <MoreHorizontal className="size-4" />
+                      </SecondaryButton>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -242,7 +268,7 @@ export function CatechistsPage() {
                           <button
                             type="button"
                             className="font-medium text-left hover:text-primary"
-                            onClick={() => openCatechistEditor(catechist)}
+                            onClick={() => navigate(`/app/catechists/${catechist.id}`, { state: detailState })}
                           >
                             {catechist.fullName}
                           </button>
@@ -292,6 +318,15 @@ export function CatechistsPage() {
         </PrimaryButton>
       </MobilePageActionBar>
 
+      <ActionSheet
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        title="Vista del listado"
+        description="Elige cómo revisar la lista de catequistas."
+      >
+        <ViewModeToggle value={viewMode} onChange={setViewMode} />
+      </ActionSheet>
+
         <CatechistForm
           open={openForm}
           onOpenChange={setOpenForm}
@@ -325,6 +360,15 @@ export function CatechistsPage() {
         title={actionCatechist?.fullName ?? 'Acciones del catequista'}
         description="Selecciona la acción que deseas realizar."
       >
+        <ActionSheetItem
+          label="Ver catequista"
+          icon={UserRound}
+          onClick={() => {
+            if (!actionCatechist) return
+            navigate(`/app/catechists/${actionCatechist.id}`, { state: detailState })
+            setActionCatechist(null)
+          }}
+        />
         <ActionSheetItem
           label="Editar catequista"
           icon={Edit3}

@@ -9,6 +9,7 @@ import { PublicRoute } from '@/routes/public-route'
 const LoginPage = lazy(async () => ({ default: (await import('@/pages/login-page')).LoginPage }))
 const DashboardPage = lazy(async () => ({ default: (await import('@/pages/dashboard-page')).DashboardPage }))
 const CatechistsPage = lazy(async () => ({ default: (await import('@/pages/catechists-page')).CatechistsPage }))
+const CatechistDetailPage = lazy(async () => ({ default: (await import('@/pages/catechist-detail-page')).CatechistDetailPage }))
 const GroupsPage = lazy(async () => ({ default: (await import('@/pages/groups-page')).GroupsPage }))
 const GroupDetailPage = lazy(async () => ({ default: (await import('@/pages/group-detail-page')).GroupDetailPage }))
 const StudentsPage = lazy(async () => ({ default: (await import('@/pages/students-page')).StudentsPage }))
@@ -54,6 +55,7 @@ export function AppRouter() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SuspensePage variant="dashboard"><DashboardPage /></SuspensePage>} />
           <Route path="catechists" element={<SuspensePage variant="list"><CatechistsPage /></SuspensePage>} />
+          <Route path="catechists/:catechistId" element={<SuspensePage variant="detail"><CatechistDetailPage /></SuspensePage>} />
           <Route path="groups" element={<SuspensePage variant="list"><GroupsPage /></SuspensePage>} />
           <Route path="groups/:groupId" element={<SuspensePage variant="detail"><GroupDetailPage /></SuspensePage>} />
           <Route path="students" element={<SuspensePage variant="list"><StudentsPage /></SuspensePage>} />

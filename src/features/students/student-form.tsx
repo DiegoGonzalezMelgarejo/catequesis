@@ -176,29 +176,35 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
 
         {currentStep === 0 ? (
           <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <AppInput label="Nombres" error={form.formState.errors.firstName?.message} {...form.register('firstName')} />
-              <AppInput label="Apellidos" error={form.formState.errors.lastName?.message} {...form.register('lastName')} />
-              <AppInput label="Fecha de nacimiento" type="date" error={form.formState.errors.birthDate?.message} {...form.register('birthDate')} />
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Grupo</span>
-                <select
-                  className="h-11 rounded-xl border border-input bg-white px-4 text-sm"
-                  {...form.register('groupId')}
-                >
-                  <option value="">Selecciona un grupo</option>
-                  {groups.map((group) => (
-                    <option key={group.value} value={group.value}>
-                      {group.label}
-                    </option>
-                  ))}
-                </select>
-                {form.formState.errors.groupId?.message ? (
-                  <span className="text-xs text-destructive">{form.formState.errors.groupId.message}</span>
-                ) : null}
-              </label>
-              <div className="sm:col-span-2">
-                <AppInput label="Observaciones" {...form.register('observations')} />
+            <div className="rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
+              <div className="mb-4">
+                <p className="font-medium">Datos personales</p>
+                <p className="text-sm text-muted-foreground">Registra identidad básica y el grupo al que pertenece el alumno.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <AppInput label="Nombres" error={form.formState.errors.firstName?.message} {...form.register('firstName')} />
+                <AppInput label="Apellidos" error={form.formState.errors.lastName?.message} {...form.register('lastName')} />
+                <AppInput label="Fecha de nacimiento" type="date" error={form.formState.errors.birthDate?.message} {...form.register('birthDate')} />
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-medium">Grupo</span>
+                  <select
+                    className="h-11 rounded-[0.875rem] border border-input bg-white px-4 text-sm"
+                    {...form.register('groupId')}
+                  >
+                    <option value="">Selecciona un grupo</option>
+                    {groups.map((group) => (
+                      <option key={group.value} value={group.value}>
+                        {group.label}
+                      </option>
+                    ))}
+                  </select>
+                  {form.formState.errors.groupId?.message ? (
+                    <span className="text-[11px] text-destructive">{form.formState.errors.groupId.message}</span>
+                  ) : null}
+                </label>
+                <div className="sm:col-span-2">
+                  <AppInput label="Observaciones" hint="Opcional. Añade información pastoral, médica o de acompañamiento." {...form.register('observations')} />
+                </div>
               </div>
             </div>
 
@@ -209,7 +215,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
         ) : null}
 
         {currentStep === 1 ? (
-          <div className="space-y-4">
+          <div className="space-y-4 rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
             <div className="space-y-1">
               <p className="text-sm font-medium">Sacramentos recibidos</p>
               <p className="text-sm text-muted-foreground">
@@ -224,7 +230,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
                     key={sacrament.value}
                     type="button"
                     variant={selected ? 'default' : 'outline'}
-                    className={cn('justify-start rounded-2xl', !selected && 'bg-white')}
+                    className={cn('justify-start rounded-[0.9rem]', !selected && 'bg-white')}
                     onClick={() => {
                       const nextValue = selected
                         ? selectedSacraments.filter((id) => id !== sacrament.value)
@@ -243,7 +249,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
         {currentStep === 2 ? (
           <div className="space-y-4">
             {[0, 1].map((index) => (
-              <div key={index} className="rounded-3xl border bg-secondary/35 p-4">
+              <div key={index} className="rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <p className="font-medium">Acudiente {index + 1}</p>

@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 228 100% 99%;
+    --background: 220 33% 98%;
     --foreground: 230 21% 18%;
     --card: 0 0% 100%;
     --card-foreground: 230 21% 18%;
@@ -12,11 +12,11 @@
     --popover-foreground: 230 21% 18%;
     --primary: 248 95% 67%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 230 26% 96%;
+    --secondary: 224 24% 95%;
     --secondary-foreground: 230 21% 18%;
-    --muted: 228 35% 95%;
-    --muted-foreground: 228 15% 45%;
-    --accent: 190 95% 94%;
+    --muted: 226 26% 94%;
+    --muted-foreground: 228 13% 39%;
+    --accent: 224 32% 93%;
     --accent-foreground: 230 21% 18%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -24,10 +24,10 @@
     --success-foreground: 0 0% 100%;
     --warning: 39 100% 58%;
     --warning-foreground: 230 21% 18%;
-    --border: 228 27% 89%;
-    --input: 228 27% 89%;
+    --border: 228 20% 87%;
+    --input: 228 20% 87%;
     --ring: 248 95% 67%;
-    --radius: 1rem;
+    --radius: 0.875rem;
   }
 
   * {
@@ -45,9 +45,8 @@
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
       sans-serif;
     background-image:
-      radial-gradient(circle at top, rgba(109, 94, 252, 0.14), transparent 32%),
-      radial-gradient(circle at bottom right, rgba(76, 201, 240, 0.12), transparent 28%),
-      linear-gradient(180deg, #f7f8ff 0%, #f5f7ff 100%);
+      radial-gradient(circle at top, rgba(109, 94, 252, 0.08), transparent 28%),
+      linear-gradient(180deg, #fafbff 0%, #f6f7fb 100%);
     margin: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -79,7 +78,7 @@
   }
 
   .glass-card {
-    @apply rounded-[1.5rem] border border-white/60 bg-white/80 shadow-card backdrop-blur;
+    @apply rounded-[1rem] border border-white/70 bg-white/92 shadow-card backdrop-blur;
   }
 
   .no-scrollbar {

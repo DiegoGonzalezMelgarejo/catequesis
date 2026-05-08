@@ -15,20 +15,17 @@ type SummaryCardProps = {
 export function SummaryCard({ title, value, caption, icon: Icon, to }: SummaryCardProps) {
   const content = (
     <AppCard className="h-full" interactive={Boolean(to)}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-          {caption ? <p className="mt-2 max-w-[16rem] text-sm text-muted-foreground">{caption}</p> : null}
-          {to ? (
-            <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">
-              Ver lista
-              <ArrowUpRight className="size-4" />
-            </div>
-          ) : null}
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="shrink-0 rounded-[0.95rem] bg-secondary p-3 text-primary">
+          <Icon className="size-4.5" />
         </div>
-        <div className="rounded-[1.25rem] bg-gradient-to-br from-primary/15 via-primary/10 to-cyan-400/10 p-3.5 text-primary shadow-sm">
-          <Icon className="size-5" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <p className="min-w-0 text-sm font-medium leading-tight text-muted-foreground">{title}</p>
+            {to ? <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> : null}
+          </div>
+          <p className="mt-2 break-words text-xl font-semibold tracking-tight text-foreground sm:text-[1.75rem]">{value}</p>
+          {caption ? <p className="mt-1 max-w-[16rem] text-sm leading-snug text-muted-foreground">{caption}</p> : null}
         </div>
       </div>
     </AppCard>

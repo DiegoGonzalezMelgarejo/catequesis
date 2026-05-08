@@ -26,12 +26,12 @@ function DashboardSkeleton() {
     <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-40 rounded-[1.75rem]" />
+          <Skeleton key={index} className="h-32 rounded-[1rem]" />
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Skeleton className="h-60 rounded-[1.75rem]" />
-        <Skeleton className="h-60 rounded-[1.75rem]" />
+        <Skeleton className="h-56 rounded-[1rem]" />
+        <Skeleton className="h-56 rounded-[1rem]" />
       </div>
     </>
   )
@@ -46,7 +46,7 @@ function ListSkeleton() {
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-72 rounded-[1.75rem]" />
+          <Skeleton key={index} className="h-56 rounded-[1rem]" />
         ))}
       </div>
     </>
@@ -61,11 +61,11 @@ function DetailSkeleton() {
         <Skeleton className="h-11 w-36" />
         <Skeleton className="h-11 w-36" />
       </div>
-      <Skeleton className="h-64 rounded-[1.75rem]" />
-      <Skeleton className="h-12 w-72 rounded-[1.25rem]" />
+      <Skeleton className="h-56 rounded-[1rem]" />
+      <Skeleton className="h-12 w-72 rounded-[1rem]" />
       <div className="grid gap-4 xl:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-56 rounded-[1.75rem]" />
+          <Skeleton key={index} className="h-48 rounded-[1rem]" />
         ))}
       </div>
     </>

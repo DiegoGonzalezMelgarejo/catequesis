@@ -27,7 +27,7 @@ export function CollapsibleSection({
     <AppCard className={className}>
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-3 rounded-[1.25rem] text-left"
+        className="flex w-full items-center justify-between gap-3 rounded-[1rem] text-left"
         onClick={() => setOpen((current) => !current)}
       >
         <div className="min-w-0">
@@ -42,7 +42,7 @@ export function CollapsibleSection({
         </div>
       </button>
 
-      {open ? <div className="mt-4">{children}</div> : null}
+      {open ? <div className="mt-4 border-t border-border/60 pt-4">{children}</div> : null}
     </AppCard>
   )
 }

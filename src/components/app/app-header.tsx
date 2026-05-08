@@ -42,7 +42,7 @@ export function AppHeader({ title, description, role }: AppHeaderProps) {
   return (
     <>
       <header className="safe-top z-20 border-b border-white/70 bg-background/80 backdrop-blur sm:sticky sm:top-0">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-3 pb-3 sm:px-5 lg:flex-row lg:items-start lg:justify-between lg:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 pb-3 sm:px-5 lg:flex-row lg:items-start lg:justify-between lg:px-6">
           <div className="space-y-2">
             <div className="hidden flex-wrap items-center gap-2 sm:flex">
               <Badge variant="default">{role === 'ADMIN' ? 'ADMIN' : 'CATEQUISTA'}</Badge>
@@ -55,8 +55,15 @@ export function AppHeader({ title, description, role }: AppHeaderProps) {
               ) : null}
             </div>
             <div>
-              <h1 className="text-lg font-semibold tracking-tight sm:text-2xl lg:text-3xl">{title}</h1>
-              <p className="mt-1 hidden max-w-2xl text-xs text-muted-foreground sm:block sm:text-sm">{description}</p>
+              <div className="flex items-center gap-2 sm:block">
+                <h1 className="text-[1.45rem] font-semibold tracking-tight sm:text-2xl lg:text-3xl">{title}</h1>
+                {isOffline ? (
+                  <Badge variant="warning" className="sm:hidden">
+                    Sin internet
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
             </div>
           </div>
 

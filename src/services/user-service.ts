@@ -11,6 +11,7 @@ import {
 import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore'
 import { notifyDataChanged } from '@/store/data-store'
 import type { Group, User } from '@/types/models'
+import { calculateAge } from '@/utils/date'
 import { createId, createLocalMeta } from '@/utils/entity'
 import { buildSearchTokens, normalizeSearchText } from '@/utils/search'
 
@@ -33,6 +34,25 @@ export type CatechistsPageResult = {
   items: CatechistOverview[]
   nextCursor: QueryDocumentSnapshot<DocumentData> | null
   hasMore: boolean
+}
+
+export type CatechistDetail = CatechistOverview & {
+  students: Array<{
+    id: string
+    fullName: string
+    age: number
+    groupId: string
+    groupName: string
+    active: boolean
+  }>
+  groups: Array<{
+    id: string
+    name: string
+    schedule?: string
+    active: boolean
+    studentCount: number
+  }>
+  activeStudentCount: number
 }
 
 export async function getCatechistUsers() {
@@ -110,6 +130,60 @@ export async function getCatechistsPage(
     nextCursor: usersPage.nextCursor,
     hasMore: usersPage.hasMore,
   } satisfies CatechistsPageResult
+}
+
+export async function getCatechistDetail(userId: string) {
+  const [user, groups, userGroups, students] = await Promise.all([
+    getDocumentById<User>('users', userId),
+    listDocuments<Group>('groups'),
+    listDocuments<{ id: string; userId: string; groupId: string }>('userGroups'),
+    listDocuments<{
+      id: string
+      firstName: string
+      lastName: string
+      birthDate: string
+      groupId: string
+      active: boolean
+    }>('students'),
+  ])
+
+  if (!user || user.role !== 'CATECHIST') {
+    return null
+  }
+
+  const assignedGroupIds = userGroups
+    .filter((assignment) => assignment.userId === user.id)
+    .map((assignment) => assignment.groupId)
+  const assignedGroups = groups
+    .filter((group) => assignedGroupIds.includes(group.id))
+    .sort((left, right) => left.name.localeCompare(right.name, 'es'))
+
+  const detailStudents = students
+    .filter((student) => assignedGroupIds.includes(student.groupId))
+    .map((student) => ({
+      id: student.id,
+      fullName: `${student.firstName} ${student.lastName}`,
+      age: calculateAge(student.birthDate),
+      groupId: student.groupId,
+      groupName: assignedGroups.find((group) => group.id === student.groupId)?.name ?? 'Grupo',
+      active: student.active,
+    }))
+    .sort((left, right) => left.fullName.localeCompare(right.fullName, 'es'))
+
+  return {
+    ...user,
+    groupNames: assignedGroups.map((group) => group.name),
+    groupCount: assignedGroups.length,
+    groups: assignedGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      schedule: group.schedule,
+      active: group.active,
+      studentCount: detailStudents.filter((student) => student.groupId === group.id && student.active).length,
+    })),
+    students: detailStudents,
+    activeStudentCount: detailStudents.filter((student) => student.active).length,
+  } satisfies CatechistDetail
 }
 
 export async function saveCatechist(input: CatechistInput) {

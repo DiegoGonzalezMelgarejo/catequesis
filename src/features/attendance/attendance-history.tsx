@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { History, NotebookPen } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { AppCard } from '@/components/app/app-card'
 import { AppSelect } from '@/components/app/app-select'
-import { Badge } from '@/components/app/badge'
 import { EmptyState } from '@/components/app/empty-state'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
@@ -24,6 +23,7 @@ type AttendanceHistoryProps = {
 
 export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [selectedGroupId, setSelectedGroupId] = useState(initialGroupId ?? '')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -76,7 +76,7 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <AppCard title="Histórico de asistencia" description="Consulta todas las fechas registradas del grupo y abre una toma existente para editarla.">
           <AppSelect
@@ -89,7 +89,7 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
 
         <PrimaryButton
           type="button"
-          onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&mode=new`)}
+          onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&mode=new`, { state: { from: location.pathname + location.search, label: 'Volver al histórico' } })}
           disabled={!selectedGroupId}
           className="h-12"
         >
@@ -112,56 +112,39 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
           description="Aún no hay fechas registradas para este grupo o no coinciden con la búsqueda."
           icon={History}
           action={
-            <PrimaryButton
-              onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&mode=new`)}
-              disabled={!selectedGroupId}
-            >
+              <PrimaryButton
+                onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&mode=new`, { state: { from: location.pathname + location.search, label: 'Volver al histórico' } })}
+                disabled={!selectedGroupId}
+              >
               Crear primera toma
             </PrimaryButton>
           }
         />
       ) : (
-        <div className="space-y-3">
-          {pagedHistory.map((session) => (
-            <AppCard key={session.id}>
-              <div className="space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-semibold">{formatDate(session.date, 'EEEE dd MMM yyyy')}</p>
-                      <Badge variant="secondary">{session.records.length} alumnos</Badge>
+        <div className="space-y-4">
+          <AppCard title="Fechas registradas" description="Listado corto para abrir y editar una asistencia existente.">
+            <div className="divide-y divide-border/70">
+              {pagedHistory.map((session) => (
+                <div key={session.id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{formatDate(session.date, 'dd MMM yyyy')}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {session.counts.presentes} presentes • {session.counts.ausentes} ausentes • {session.counts.justificados} justificados
+                      </p>
+                      {session.notes ? <p className="mt-1 text-xs text-muted-foreground">{session.notes}</p> : null}
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {session.notes || 'Sin observaciones generales.'}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
                     <SecondaryButton
                       type="button"
-                      onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&date=${session.date}&mode=edit`)}
+                      onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&date=${session.date}&mode=edit`, { state: { from: location.pathname + location.search, label: 'Volver al histórico' } })}
                     >
-                      Editar toma
+                      Abrir
                     </SecondaryButton>
                   </div>
                 </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[1.25rem] border border-success/20 bg-success/10 p-4 text-sm text-success">
-                    <p className="text-muted-foreground">Presentes</p>
-                    <p className="mt-1 font-medium">{session.counts.presentes}</p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
-                    <p className="text-muted-foreground">Ausentes</p>
-                    <p className="mt-1 font-medium">{session.counts.ausentes}</p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-warning/25 bg-warning/15 p-4 text-sm text-foreground">
-                    <p className="text-muted-foreground">Justificados</p>
-                    <p className="mt-1 font-medium">{session.counts.justificados}</p>
-                  </div>
-                </div>
-              </div>
-            </AppCard>
-          ))}
+              ))}
+            </div>
+          </AppCard>
 
           <PaginationControls
             page={page}

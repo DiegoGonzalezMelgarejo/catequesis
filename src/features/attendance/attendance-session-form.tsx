@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCheck, CircleOff, MessageSquareMore, NotebookPen, ShieldCheck } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { AppCard } from '@/components/app/app-card'
@@ -15,6 +15,7 @@ import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useBackNavigation } from '@/hooks/use-back-navigation'
 import { Input } from '@/components/ui/input'
 import { getAccessibleGroups } from '@/services/access-service'
 import { getAttendanceSessionDetail, getStudentsByGroup, saveAttendanceSession } from '@/services/attendance-service'
@@ -70,6 +71,7 @@ export function AttendanceSessionForm({
   mode = 'new',
 }: AttendanceSessionFormProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [selectedGroupId, setSelectedGroupId] = useState(initialGroupId ?? '')
   const [selectedDate, setSelectedDate] = useState(initialDate ?? getTodayInputValue())
   const [records, setRecords] = useState<AttendanceState>({})
@@ -187,9 +189,13 @@ export function AttendanceSessionForm({
   const formattedActionDate = selectedDate
     ? formatDate(selectedDate, 'dd MMM yyyy')
     : 'fecha seleccionada'
+  const { goBack } = useBackNavigation(
+    selectedGroupId ? `/app/attendance?groupId=${selectedGroupId}` : '/app/attendance',
+    'Volver al histórico',
+  )
   const submitButtonLabel = saving
-    ? `${isEditingSession ? 'Actualizando' : 'Guardando'} toma del ${formattedActionDate}`
-    : `${isEditingSession ? 'Actualizar' : 'Guardar'} toma del ${formattedActionDate}`
+    ? `${isEditingSession ? 'Actualizando' : 'Guardando'} asistencia del ${formattedActionDate}`
+    : `${isEditingSession ? 'Actualizar' : 'Guardar'} asistencia del ${formattedActionDate}`
 
   if (groupsLoading && !groupsData) {
     return <PageSkeleton variant="detail" />
@@ -220,7 +226,11 @@ export function AttendanceSessionForm({
         })),
       })
       toast.success(existingSession.session ? 'Asistencia actualizada.' : 'Asistencia guardada.')
-      navigate(`/app/attendance?groupId=${selectedGroupId}`)
+      if ((location.state as { from?: string } | null)?.from) {
+        goBack()
+      } else {
+        navigate(`/app/attendance?groupId=${selectedGroupId}`)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No fue posible guardar la asistencia.')
     } finally {
@@ -230,14 +240,8 @@ export function AttendanceSessionForm({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-3">
-        <SecondaryButton type="button" onClick={() => navigate(`/app/attendance?groupId=${selectedGroupId}`)}>
-          Volver al histórico
-        </SecondaryButton>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <AppCard title={mode === 'edit' ? 'Editar toma de asistencia' : 'Nueva toma de asistencia'} description="Selecciona la fecha y registra la asistencia del grupo. Cada fecha guarda su propia toma.">
+        <AppCard title={mode === 'edit' ? 'Editar asistencia' : 'Nueva asistencia'} description={mode === 'edit' ? 'Puedes actualizar la asistencia de los estudiantes. La fecha de esta asistencia no se puede cambiar.' : 'Elige el grupo, la fecha y registra la asistencia de los estudiantes.'}>
           <div className="grid gap-4 sm:grid-cols-2">
             <AppSelect
               label="Grupo"
@@ -249,14 +253,16 @@ export function AttendanceSessionForm({
               label="Fecha"
               type="date"
               value={selectedDate}
+              disabled={mode === 'edit'}
               onChange={(event) => setSelectedDate(event.target.value)}
+              hint={mode === 'edit' ? 'La fecha queda fija cuando abres una asistencia para editar.' : 'Selecciona la fecha del encuentro.'}
             />
             <div className="sm:col-span-2">
               <AppInput
-                label="Observaciones generales"
+                label="Notas del encuentro"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                hint="Puedes registrar notas generales del encuentro de ese día."
+                hint="Opcional. Escribe una nota corta sobre lo ocurrido ese día."
               />
             </div>
           </div>
@@ -271,11 +277,11 @@ export function AttendanceSessionForm({
 
       {mode === 'edit' && existingSession.session ? (
         <AppCard
-          title="Editando una toma existente"
-          description="Los cambios que guardes actualizarán la asistencia registrada para esta fecha."
+          title="Estás editando una asistencia ya guardada"
+          description="Solo cambia la asistencia de los estudiantes o las notas. La fecha se mantiene igual."
         >
           <div className="text-sm text-muted-foreground">
-            Revisa la fecha, ajusta los estados necesarios y guarda para actualizar el registro.
+            Revisa la lista, ajusta presentes, ausentes o justificados y guarda los cambios.
           </div>
         </AppCard>
       ) : null}
@@ -283,18 +289,18 @@ export function AttendanceSessionForm({
       {isDuplicateNewSession ? (
         <AppCard
           title="Esta fecha ya fue registrada"
-          description="No puedes crear una nueva toma para la misma fecha. Debes regresar al histórico y abrir la existente para editarla."
+          description="Ya existe una asistencia guardada para esta fecha. Abre esa asistencia para actualizarla."
         >
           <div className="flex flex-wrap gap-2">
             <SecondaryButton
               type="button"
-              onClick={() => navigate(`/app/attendance?groupId=${selectedGroupId}`)}
+              onClick={goBack}
             >
               Volver al histórico
             </SecondaryButton>
             <PrimaryButton
               type="button"
-              onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&date=${selectedDate}&mode=edit`)}
+              onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&date=${selectedDate}&mode=edit`, { state: location.state })}
             >
               Editar esta toma
             </PrimaryButton>
@@ -303,7 +309,7 @@ export function AttendanceSessionForm({
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar alumno" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar estudiante" />
         <div className="flex flex-wrap gap-2">
           <PrimaryButton
             type="button"
@@ -318,7 +324,7 @@ export function AttendanceSessionForm({
               )
             }
           >
-            Marcar todos presentes
+            Todos presentes
           </PrimaryButton>
           <PrimaryButton
             type="button"
@@ -347,8 +353,8 @@ export function AttendanceSessionForm({
               className={cn(
                 'rounded-full border px-3 py-2 text-sm font-medium transition',
                 active
-                  ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                  : 'border-white/70 bg-white text-muted-foreground hover:bg-secondary/70',
+                  ? 'border-border bg-secondary text-foreground'
+                  : 'border-border/80 bg-white text-muted-foreground hover:bg-secondary/70',
               )}
               onClick={() => setStatusFilter(option.key as 'ALL' | AttendanceStatus)}
             >
@@ -374,8 +380,8 @@ export function AttendanceSessionForm({
         />
       ) : (
         <AppCard
-          title="Lista del día"
-          description="Vista compacta para registrar asistencia de grupos grandes con menos desplazamiento."
+          title="Lista de estudiantes"
+          description="Marca la asistencia de cada estudiante en una lista simple."
         >
           <div className="space-y-2">
             {pagedStudents.map((student) => {
@@ -396,7 +402,7 @@ export function AttendanceSessionForm({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{student.firstName} {student.lastName}</p>
-                      <p className="text-xs text-muted-foreground">Registro individual de esta fecha</p>
+                      <p className="text-xs text-muted-foreground">Asistencia de este encuentro</p>
                     </div>
                     <Badge className={cn('border shrink-0', statusMeta[currentStatus].className)}>
                       {statusMeta[currentStatus].label}

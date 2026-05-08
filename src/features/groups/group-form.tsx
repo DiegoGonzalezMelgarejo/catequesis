@@ -124,15 +124,21 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
         <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
         {currentStep === 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <AppInput label="Nombre del grupo" error={form.formState.errors.name?.message} {...form.register('name')} />
-            <AppInput label="Horario" hint="Ej. Sábados 9:00 AM" {...form.register('schedule')} />
-            <div className="sm:col-span-2">
-              <AppInput label="Descripción" {...form.register('description')} />
+          <div className="rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
+            <div className="mb-4">
+              <p className="font-medium">Información del grupo</p>
+              <p className="text-sm text-muted-foreground">Define el nombre, horario y una referencia rápida para el equipo.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <AppInput label="Nombre del grupo" error={form.formState.errors.name?.message} {...form.register('name')} />
+              <AppInput label="Horario" hint="Ej. Sábados 9:00 AM" {...form.register('schedule')} />
+              <div className="sm:col-span-2">
+                <AppInput label="Descripción" hint="Opcional. Úsala para recordar etapa, salón o enfoque del grupo." {...form.register('description')} />
+              </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
             <div>
               <p className="text-sm font-medium">Catequistas asignados</p>
               <p className="text-sm text-muted-foreground">Puedes asociar uno o varios catequistas.</p>
@@ -146,7 +152,7 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
                     key={catechist.value}
                     type="button"
                     variant={selected ? 'default' : 'outline'}
-                    className={cn('justify-start rounded-2xl', !selected && 'bg-white')}
+                    className={cn('justify-start rounded-[0.9rem]', !selected && 'bg-white')}
                     onClick={() => {
                       const nextValue = selected
                         ? selectedCatechists.filter((id) => id !== catechist.value)

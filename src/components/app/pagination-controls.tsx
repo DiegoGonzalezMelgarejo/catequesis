@@ -22,7 +22,7 @@ export function PaginationControls({
   onPrevious,
 }: PaginationControlsProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-[1.5rem] border border-white/70 bg-white/85 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-[1rem] border border-border/70 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-medium text-foreground">{label}</p>
         <p className="text-sm text-muted-foreground">Pagina {page} • {pageSize} por carga</p>

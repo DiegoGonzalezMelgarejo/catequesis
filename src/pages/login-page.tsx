@@ -52,7 +52,7 @@ export function LoginPage() {
               {...form.register('password')}
             />
 
-            <div className="rounded-3xl bg-secondary/50 p-4 text-sm text-muted-foreground">
+            <div className="rounded-[1rem] bg-secondary/45 p-4 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Acceso seguro</p>
               <p>Si no recuerdas tus datos de ingreso, solicita apoyo al responsable de la plataforma.</p>
             </div>

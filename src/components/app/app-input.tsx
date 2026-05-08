@@ -18,8 +18,8 @@ export const AppInput = forwardRef<HTMLInputElement, AppInputProps>(
       <label className="flex flex-col gap-2">
         {label ? <Label htmlFor={inputId}>{label}</Label> : null}
         <Input id={inputId} ref={ref} className={cn(error && 'border-destructive', className)} {...props} />
-        {error ? <span className="text-xs text-destructive">{error}</span> : null}
-        {!error && hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+        {error ? <span className="text-[11px] text-destructive">{error}</span> : null}
+        {!error && hint ? <span className="text-[11px] text-muted-foreground">{hint}</span> : null}
       </label>
     )
   },

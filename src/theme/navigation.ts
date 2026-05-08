@@ -50,6 +50,11 @@ export const pageMetadata: Array<{
     description: 'Resumen rapido para la jornada de catequesis.',
   },
   {
+    match: /\/app\/catechists\/.+/,
+    title: 'Detalle del catequista',
+    description: 'Consulta sus grupos asignados y los alumnos vinculados.',
+  },
+  {
     match: /\/app\/catechists/,
     title: 'Catequistas',
     description: 'Crea, edita y asigna grupos a tu equipo.',
@@ -77,12 +82,12 @@ export const pageMetadata: Array<{
   {
     match: /\/app\/attendance\/session/,
     title: 'Toma de asistencia',
-    description: 'Selecciona la fecha y registra o edita la asistencia del grupo.',
+    description: 'Marca la asistencia del grupo y guarda los cambios del encuentro.',
   },
   {
     match: /\/app\/attendance/,
     title: 'Asistencia',
-    description: 'Consulta el histórico y administra las asistencias por fecha.',
+    description: 'Busca una fecha y abre la asistencia que necesitas revisar.',
   },
   {
     match: /\/app\/activities/,

@@ -27,23 +27,23 @@ export function AppCard({
   interactive = false,
 }: AppCardProps) {
   return (
-    <Card
-      className={cn(
-        'relative overflow-hidden border-white/70 bg-white/88 backdrop-blur motion-safe:animate-in motion-safe:fade-in-50 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-20 before:bg-gradient-to-br before:from-primary/10 before:via-primary/5 before:to-transparent before:content-["\"]',
-        interactive && 'transition duration-200 hover:-translate-y-1 hover:border-primary/25 hover:shadow-soft',
-        className,
-      )}
-    >
+      <Card
+        className={cn(
+          'overflow-hidden border-border/80 bg-white/96 motion-safe:animate-in motion-safe:fade-in-50 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500',
+          interactive && 'transition duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-soft',
+          className,
+        )}
+      >
       {(title || description || actions) && (
-        <CardHeader className="relative flex flex-row items-start justify-between gap-3">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border/60 pb-4">
           <div className="space-y-1">
             {title ? <CardTitle>{title}</CardTitle> : null}
             {description ? <CardDescription>{description}</CardDescription> : null}
-          </div>
+            </div>
           {actions}
         </CardHeader>
       )}
-      <CardContent className="relative">{children}</CardContent>
+      <CardContent className={cn(title || description || actions ? 'pt-4' : '', 'relative')}>{children}</CardContent>
     </Card>
   )
 }

@@ -73,7 +73,7 @@ export function AlertsPage() {
   return alerts.length === 0 ? (
     <EmptyState title="Sin alertas" description="No se detectaron riesgos ni pendientes." icon={Bell} />
   ) : (
-    <div className="space-y-4">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar alerta, grupo o alumno" />
         <div className="flex flex-wrap gap-2">
@@ -91,9 +91,9 @@ export function AlertsPage() {
                 type="button"
                 className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
                   active
-                    ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
-                    : 'border-white/70 bg-white text-muted-foreground hover:bg-secondary/70'
-                }`}
+                    ? 'border-border bg-secondary text-foreground'
+                    : 'border-border/80 bg-white text-muted-foreground hover:bg-secondary/70'
+                 }`}
                 onClick={() => setSeverityFilter(option.key as 'all' | 'high' | 'medium' | 'low')}
               >
                 {option.label}
@@ -107,33 +107,38 @@ export function AlertsPage() {
         <EmptyState title="Sin coincidencias" description="No hay alertas para el filtro actual." icon={Bell} />
       ) : (
         <>
-          {pagedAlerts.map((alert) => {
-          const meta = severityMeta[alert.severity]
-          const Icon = meta.icon
+          <AppCard title="Listado de alertas" description="Vista simple para revisar qué requiere atención y dónde mirar.">
+            <div className="divide-y divide-border/70">
+              {pagedAlerts.map((alert) => {
+                const meta = severityMeta[alert.severity]
+                const Icon = meta.icon
 
-          return (
-            <AppCard key={alert.id} className={meta.card}>
-            <div className="flex items-start gap-4">
-              <div className={`rounded-[1.25rem] p-3 ${meta.iconWrap}`}>
-                <Icon className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium">{alert.title}</p>
-                  <Badge variant={meta.badge}>{alert.severity}</Badge>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{alert.description}</p>
-                {alert.groupName || alert.studentName ? (
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    {alert.groupName ? <Badge variant="outline">{alert.groupName}</Badge> : null}
-                    {alert.studentName ? <Badge variant="outline">{alert.studentName}</Badge> : null}
+                return (
+                  <div key={alert.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-start gap-3">
+                      <div className={`shrink-0 rounded-[0.85rem] p-2.5 ${meta.iconWrap}`}>
+                        <Icon className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold">{alert.title}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{alert.description}</p>
+                            {alert.groupName || alert.studentName ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {[alert.groupName, alert.studentName].filter(Boolean).join(' • ')}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant={meta.badge} className="shrink-0">{alert.severity}</Badge>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : null}
-              </div>
+                )
+              })}
             </div>
-            </AppCard>
-          )
-          })}
+          </AppCard>
 
           <PaginationControls
             page={page}
