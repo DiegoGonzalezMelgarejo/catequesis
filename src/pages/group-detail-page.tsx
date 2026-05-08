@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 
 import { AppCard } from '@/components/app/app-card'
 import { Badge } from '@/components/app/badge'
+import { CollapsibleSection } from '@/components/app/collapsible-section'
 import { EmptyState } from '@/components/app/empty-state'
 import { EntityAvatar } from '@/components/app/entity-avatar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
@@ -179,8 +180,8 @@ export function GroupDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
         <SecondaryButton asChild>
           <Link to="/app/groups">Volver a grupos</Link>
         </SecondaryButton>
@@ -221,12 +222,12 @@ export function GroupDetailPage() {
 
       <AppCard>
         <div className="space-y-4">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-4">
-              <EntityAvatar icon={Users} label={detail.name} tone="warning" className="size-20" />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <EntityAvatar icon={Users} label={detail.name} tone="warning" className="size-16 sm:size-20" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-semibold tracking-tight">{detail.name}</h2>
+                  <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{detail.name}</h2>
                   <Badge variant={detail.active ? 'success' : 'outline'}>
                     {detail.active ? 'Activo' : 'Inactivo'}
                   </Badge>
@@ -234,7 +235,7 @@ export function GroupDetailPage() {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {detail.schedule || 'Sin horario definido'}
                 </p>
-                <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                <p className="mt-2 max-w-3xl text-xs text-muted-foreground sm:text-sm">
                   {detail.description || 'Sin descripción registrada para este grupo.'}
                 </p>
               </div>
@@ -253,7 +254,7 @@ export function GroupDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <SummaryCard title="Alumnos activos" value={detail.studentCount} icon={BookUser} />
             <SummaryCard title="Catequistas" value={detail.catechists.length} icon={Users} />
             <SummaryCard title="Jornadas" value={detail.attendanceSessions.length} icon={ClipboardCheck} />
@@ -293,28 +294,28 @@ export function GroupDetailPage() {
                 />
               ) : (
                 <>
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="grid gap-3 xl:grid-cols-2">
                     {pagedStudents.map((student) => (
                       <AppCard key={student.id} interactive>
                         <div className="space-y-4">
-                          <div className="flex items-start gap-4 rounded-[1.5rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-4">
-                            <EntityAvatar icon={UserRound} label={student.fullName} />
+                          <div className="flex items-start gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3.5">
+                            <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-lg font-semibold">{student.fullName}</p>
-                                  <p className="text-sm text-muted-foreground">{student.age} años</p>
+                                  <p className="text-base font-semibold sm:text-lg">{student.fullName}</p>
+                                  <p className="text-xs text-muted-foreground sm:text-sm">{student.age} años</p>
                                 </div>
                                 <Badge variant={student.active ? 'success' : 'outline'}>
                                   {student.active ? 'Activo' : 'Inactivo'}
                                 </Badge>
                               </div>
-                              <p className="mt-3 text-sm text-muted-foreground">Toca el botón para abrir la ficha completa del alumno.</p>
+                              <p className="mt-2 hidden text-sm text-muted-foreground sm:block">Toca el botón para abrir la ficha completa del alumno.</p>
                             </div>
                           </div>
 
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
+                          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
                               <p className="text-muted-foreground">Acudiente principal</p>
                               <p className="mt-1 font-medium">
                                 {student.primaryGuardianName || 'Sin acudiente'}
@@ -323,21 +324,21 @@ export function GroupDetailPage() {
                                 {student.primaryGuardianPhone || 'Sin contacto'}
                               </p>
                             </div>
-                            <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
+                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
                               <p className="text-muted-foreground">Sacramentos</p>
                               <p className="mt-1 font-medium">{student.sacramentCount}</p>
                               <p className="mt-1 text-muted-foreground">
                                 {student.guardianCount} acudientes registrados
                               </p>
                             </div>
-                            <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
+                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
                               <p className="text-muted-foreground">Asistencia</p>
                               <p className="mt-1 font-medium">{student.attendanceRate.toFixed(0)}%</p>
                               <p className="mt-1 text-muted-foreground">
                                 {student.absenceCount} faltas acumuladas
                               </p>
                             </div>
-                            <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
+                            <div className="rounded-[1.1rem] border border-white/70 bg-secondary/35 p-3 text-xs sm:p-4 sm:text-sm">
                               <p className="text-muted-foreground">Última asistencia</p>
                               <p className="mt-1 font-medium">
                                 {student.lastAttendanceDate ? formatDate(student.lastAttendanceDate) : 'Sin registro'}
@@ -354,7 +355,7 @@ export function GroupDetailPage() {
                           </div>
 
                           <div className="flex flex-wrap items-center justify-between gap-3">
-                            <p className="max-w-xl text-sm text-muted-foreground">
+                            <p className="max-w-xl text-xs text-muted-foreground sm:text-sm">
                               {student.observations || 'Sin observaciones registradas.'}
                             </p>
                             <SecondaryButton asChild>
@@ -506,8 +507,8 @@ export function GroupDetailPage() {
         </TabsContent>
 
         <TabsContent value="summary">
-          <div className="grid gap-4 xl:grid-cols-2">
-            <AppCard title="Equipo asignado" description="Catequistas vinculados a este grupo.">
+          <div className="space-y-3">
+            <CollapsibleSection title="Equipo asignado" description="Catequistas vinculados a este grupo." defaultOpen>
               <div className="flex flex-wrap gap-2">
                 {detail.catechists.length === 0 ? (
                   <Badge variant="outline">Sin catequistas</Badge>
@@ -519,9 +520,9 @@ export function GroupDetailPage() {
                   ))
                 )}
               </div>
-            </AppCard>
+            </CollapsibleSection>
 
-            <AppCard title="Última jornada" description="Referencia rápida del último encuentro registrado.">
+            <CollapsibleSection title="Última jornada" description="Referencia rápida del último encuentro registrado.">
               {detail.lastAttendanceDate ? (
                 <div className="space-y-2">
                   <Badge>{formatDate(detail.lastAttendanceDate)}</Badge>
@@ -536,9 +537,9 @@ export function GroupDetailPage() {
                   icon={CheckCheck}
                 />
               )}
-            </AppCard>
+            </CollapsibleSection>
 
-            <AppCard title="Actividades recientes" description="Últimas actividades vinculadas al grupo.">
+            <CollapsibleSection title="Actividades recientes" description="Últimas actividades vinculadas al grupo.">
               <div className="space-y-3">
                 {detail.recentActivities.length === 0 ? (
                   <EmptyState
@@ -564,9 +565,9 @@ export function GroupDetailPage() {
                   ))
                 )}
               </div>
-            </AppCard>
+            </CollapsibleSection>
 
-            <AppCard title="Seguimiento del grupo" description="Estado actual del grupo para la operación diaria.">
+            <CollapsibleSection title="Seguimiento del grupo" description="Estado actual del grupo para la operación diaria.">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
                   <p className="text-muted-foreground">Alumnos activos</p>
@@ -585,7 +586,7 @@ export function GroupDetailPage() {
                   <p className="mt-1 font-medium">{detail.catechists.length}</p>
                 </div>
               </div>
-            </AppCard>
+            </CollapsibleSection>
           </div>
         </TabsContent>
 

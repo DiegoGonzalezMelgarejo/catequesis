@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LoaderCircle } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { AppInput } from '@/components/app/app-input'
+import { FormStepIndicator } from '@/components/app/form-step-indicator'
 import { Modal } from '@/components/app/modal'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
@@ -46,6 +47,7 @@ type CatechistFormProps = {
 
 export function CatechistForm({ open, onOpenChange, catechist, groups }: CatechistFormProps) {
   const isEditing = Boolean(catechist)
+  const [currentStep, setCurrentStep] = useState(0)
   const form = useForm<CatechistFormValues>({
     resolver: zodResolver(createSchema(isEditing)),
     defaultValues: {
@@ -59,6 +61,7 @@ export function CatechistForm({ open, onOpenChange, catechist, groups }: Catechi
   })
 
   useEffect(() => {
+    setCurrentStep(0)
     form.reset({
       fullName: catechist?.fullName ?? '',
       username: catechist?.username ?? '',
@@ -70,6 +73,16 @@ export function CatechistForm({ open, onOpenChange, catechist, groups }: Catechi
   }, [catechist, form, open])
 
   const selectedGroupIds = form.watch('groupIds')
+  const steps = ['Datos', 'Grupos']
+
+  async function goNextStep() {
+    const valid = await form.trigger(['fullName', 'username', 'password', 'email'])
+    if (!valid) {
+      return
+    }
+
+    setCurrentStep(1)
+  }
 
   async function onSubmit(values: CatechistFormValues) {
     try {
@@ -101,57 +114,72 @@ export function CatechistForm({ open, onOpenChange, catechist, groups }: Catechi
           <SecondaryButton type="button" onClick={() => onOpenChange(false)}>
             Cancelar
           </SecondaryButton>
-          <PrimaryButton type="submit" form="catechist-form" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            Guardar
-          </PrimaryButton>
+          {currentStep > 0 ? (
+            <SecondaryButton type="button" onClick={() => setCurrentStep(0)}>
+              Anterior
+            </SecondaryButton>
+          ) : null}
+          {currentStep === 0 ? (
+            <PrimaryButton type="button" onClick={() => void goNextStep()}>
+              Siguiente
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton type="submit" form="catechist-form" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
+              Guardar
+            </PrimaryButton>
+          )}
         </>
       }
     >
       <form id="catechist-form" className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <AppInput label="Nombre completo" error={form.formState.errors.fullName?.message} {...form.register('fullName')} />
-          <AppInput label="Usuario" error={form.formState.errors.username?.message} {...form.register('username')} />
-          <AppInput
-            label={isEditing ? 'Nueva contrasena (opcional)' : 'Contrasena'}
-            type="password"
-            error={form.formState.errors.password?.message}
-            {...form.register('password')}
-          />
-          <AppInput label="Telefono" {...form.register('phone')} />
-          <div className="sm:col-span-2">
-            <AppInput label="Correo" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
-          </div>
-        </div>
+        <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium">Grupos asignados</p>
-            <p className="text-sm text-muted-foreground">Solo estos grupos apareceran en su panel.</p>
+        {currentStep === 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AppInput label="Nombre completo" error={form.formState.errors.fullName?.message} {...form.register('fullName')} />
+            <AppInput label="Usuario" error={form.formState.errors.username?.message} {...form.register('username')} />
+            <AppInput
+              label={isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+              type="password"
+              error={form.formState.errors.password?.message}
+              {...form.register('password')}
+            />
+            <AppInput label="Teléfono" {...form.register('phone')} />
+            <div className="sm:col-span-2">
+              <AppInput label="Correo" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
+            </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {groups.map((group) => {
-              const selected = selectedGroupIds.includes(group.value)
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium">Grupos asignados</p>
+              <p className="text-sm text-muted-foreground">Solo estos grupos aparecerán en su panel.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {groups.map((group) => {
+                const selected = selectedGroupIds.includes(group.value)
 
-              return (
-                <Button
-                  key={group.value}
-                  type="button"
-                  variant={selected ? 'default' : 'outline'}
-                  className={cn('justify-start rounded-2xl', !selected && 'bg-white')}
-                  onClick={() => {
-                    const nextValue = selected
-                      ? selectedGroupIds.filter((groupId) => groupId !== group.value)
-                      : [...selectedGroupIds, group.value]
-                    form.setValue('groupIds', nextValue, { shouldDirty: true })
-                  }}
-                >
-                  {group.label}
-                </Button>
-              )
-            })}
+                return (
+                  <Button
+                    key={group.value}
+                    type="button"
+                    variant={selected ? 'default' : 'outline'}
+                    className={cn('justify-start rounded-2xl', !selected && 'bg-white')}
+                    onClick={() => {
+                      const nextValue = selected
+                        ? selectedGroupIds.filter((groupId) => groupId !== group.value)
+                        : [...selectedGroupIds, group.value]
+                      form.setValue('groupIds', nextValue, { shouldDirty: true })
+                    }}
+                  >
+                    {group.label}
+                  </Button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </form>
     </Modal>
   )

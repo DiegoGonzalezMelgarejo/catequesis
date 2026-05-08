@@ -1,13 +1,15 @@
 import { useCallback, useMemo, useState } from 'react'
-import { BookUser, ChevronRight, Edit3, Eye, UserRound, UserRoundX } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { BookUser, Edit3, Eye, MoreHorizontal, UserRound, UserRoundX } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { ActionSheet, ActionSheetItem } from '@/components/app/action-sheet'
 import { AppCard } from '@/components/app/app-card'
 import { Badge } from '@/components/app/badge'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
 import { EmptyState } from '@/components/app/empty-state'
 import { EntityAvatar } from '@/components/app/entity-avatar'
+import { MobilePageActionBar } from '@/components/app/mobile-page-action-bar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
@@ -24,12 +26,14 @@ import { getAccessibleGroups } from '@/services/access-service'
 import { getStudentsPage, setStudentActive } from '@/services/student-service'
 
 export function StudentsPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
   const [openForm, setOpenForm] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<EditableStudent | null>(null)
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
+  const [actionStudent, setActionStudent] = useState<Awaited<ReturnType<typeof getStudentsPage>>['items'][number] | null>(null)
 
   const fetchPage = useCallback(
     (cursor: Parameters<typeof getStudentsPage>[1], pageSize: number) => {
@@ -113,7 +117,7 @@ export function StudentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-center">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar alumno" />
@@ -128,7 +132,7 @@ export function StudentsPage() {
         </div>
 
         {user.role === 'ADMIN' ? (
-          <PrimaryButton type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
+          <PrimaryButton className="hidden xl:inline-flex" type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
             Registrar alumno
           </PrimaryButton>
         ) : null}
@@ -145,100 +149,45 @@ export function StudentsPage() {
             <EmptyState title="Sin alumnos" description="No hay alumnos para el filtro actual." icon={BookUser} />
           ) : (
             <div className="space-y-4">
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="space-y-3">
                 {filteredStudents.map((student) => {
-                const editableGuardians = data.guardians
-                  .filter((guardian) => guardian.studentId === student.id)
-                  .map((guardian) => ({
-                    name: guardian.name,
-                    relationship: guardian.relationship,
-                    phone: guardian.phone,
-                    whatsapp: guardian.whatsapp,
-                    email: guardian.email,
-                    isPrimary: guardian.isPrimary,
-                  }))
-                const editableSacraments = data.studentSacraments
-                  .filter((record) => record.studentId === student.id)
-                  .map((record) => record.sacramentId)
-
                 return (
                   <AppCard key={student.id} interactive>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <Link
                         to={`/app/students/${student.id}`}
-                        className="flex items-start gap-4 rounded-[1.5rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-4 transition hover:bg-primary/5"
+                        className="flex items-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3 transition hover:bg-primary/5"
                       >
-                        <EntityAvatar icon={UserRound} label={student.fullName} />
+                        <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-lg font-semibold text-foreground">{student.fullName}</p>
-                              <p className="text-sm text-muted-foreground">{student.groupName} • {student.age} años</p>
+                              <p className="text-base font-semibold text-foreground sm:text-lg">{student.fullName}</p>
+                              <p className="text-xs text-muted-foreground sm:text-sm">{student.groupName} • {student.age} años</p>
                             </div>
-                            <Badge variant={student.active ? 'success' : 'outline'}>
+                            <Badge variant={student.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
                               {student.active ? 'Activo' : 'Inactivo'}
                             </Badge>
                           </div>
-                          <p className="mt-3 text-sm text-muted-foreground">
-                            Toca la card para ver historial, asistencia, notas y acudientes.
-                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <Badge variant={student.active ? 'success' : 'outline'} className="sm:hidden">
+                              {student.active ? 'Activo' : 'Inactivo'}
+                            </Badge>
+                            <Badge variant="outline">{student.guardianCount} acudientes</Badge>
+                            <Badge variant="outline">{student.sacramentCount} sacramentos</Badge>
+                          </div>
                         </div>
-                        <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" />
                       </Link>
 
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                          <p className="text-muted-foreground">Acudientes</p>
-                          <p className="mt-1 font-medium">{student.guardianCount}</p>
-                        </div>
-                        <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                          <p className="text-muted-foreground">Sacramentos</p>
-                          <p className="mt-1 font-medium">{student.sacramentCount}</p>
-                        </div>
-                        <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                          <p className="text-muted-foreground">Observacion</p>
-                          <p className="mt-1 font-medium">{student.observations || 'Sin notas'}</p>
-                        </div>
+                      <div className="rounded-[1.1rem] border border-white/70 bg-white/70 px-3 py-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Observación:</span>{' '}
+                        {student.observations || 'Sin observaciones registradas.'}
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <SecondaryButton asChild>
-                          <Link to={`/app/students/${student.id}`}>
-                            <Eye className="size-4" />
-                            Historial
-                          </Link>
+                      <div className="flex items-center justify-end">
+                        <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
+                          <MoreHorizontal className="size-4" />
                         </SecondaryButton>
-
-                        {user.role === 'ADMIN' ? (
-                          <>
-                            <SecondaryButton
-                              type="button"
-                              onClick={() => {
-                                setSelectedStudent({
-                                  id: student.id,
-                                  firstName: student.firstName,
-                                  lastName: student.lastName,
-                                  birthDate: student.birthDate,
-                                  groupId: student.groupId,
-                                  observations: student.observations,
-                                  guardians: editableGuardians,
-                                  sacramentIds: editableSacraments,
-                                })
-                                setOpenForm(true)
-                              }}
-                            >
-                              <Edit3 className="size-4" />
-                              Editar
-                            </SecondaryButton>
-                            <SecondaryButton
-                              type="button"
-                              onClick={() => setConfirmState({ id: student.id, active: student.active, name: student.fullName })}
-                            >
-                              <UserRoundX className="size-4" />
-                              {student.active ? 'Inactivar' : 'Reactivar'}
-                            </SecondaryButton>
-                          </>
-                        ) : null}
                       </div>
                     </div>
                   </AppCard>
@@ -283,6 +232,14 @@ export function StudentsPage() {
       </Tabs>
 
       {user.role === 'ADMIN' ? (
+        <MobilePageActionBar>
+          <PrimaryButton className="w-full" type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
+            Registrar alumno
+          </PrimaryButton>
+        </MobilePageActionBar>
+      ) : null}
+
+      {user.role === 'ADMIN' ? (
         <StudentForm
           open={openForm}
           onOpenChange={setOpenForm}
@@ -308,6 +265,72 @@ export function StudentsPage() {
         confirmLabel={confirmState?.active ? 'Inactivar' : 'Reactivar'}
         onConfirm={handleToggleStudent}
       />
+
+      <ActionSheet
+        open={Boolean(actionStudent)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActionStudent(null)
+          }
+        }}
+        title={actionStudent?.fullName ?? 'Acciones del alumno'}
+        description="Selecciona la acción que deseas realizar."
+      >
+        <ActionSheetItem
+          label="Ver historial"
+          icon={Eye}
+          onClick={() => {
+            if (!actionStudent) return
+            navigate(`/app/students/${actionStudent.id}`)
+          }}
+        />
+        {user.role === 'ADMIN' ? (
+          <>
+            <ActionSheetItem
+              label="Editar alumno"
+              icon={Edit3}
+              onClick={() => {
+                if (!actionStudent) return
+                const editableGuardians = data.guardians
+                  .filter((guardian) => guardian.studentId === actionStudent.id)
+                  .map((guardian) => ({
+                    name: guardian.name,
+                    relationship: guardian.relationship,
+                    phone: guardian.phone,
+                    whatsapp: guardian.whatsapp,
+                    email: guardian.email,
+                    isPrimary: guardian.isPrimary,
+                  }))
+                const editableSacraments = data.studentSacraments
+                  .filter((record) => record.studentId === actionStudent.id)
+                  .map((record) => record.sacramentId)
+                setSelectedStudent({
+                  id: actionStudent.id,
+                  firstName: actionStudent.firstName,
+                  lastName: actionStudent.lastName,
+                  birthDate: actionStudent.birthDate,
+                  groupId: actionStudent.groupId,
+                  observations: actionStudent.observations,
+                  guardians: editableGuardians,
+                  sacramentIds: editableSacraments,
+                })
+                setOpenForm(true)
+                setActionStudent(null)
+              }}
+            />
+            <ActionSheetItem
+              label={actionStudent?.active ? 'Inactivar alumno' : 'Reactivar alumno'}
+              icon={UserRoundX}
+              tone={actionStudent?.active ? 'destructive' : 'default'}
+              onClick={() => {
+                if (!actionStudent) return
+                setConfirmState({ id: actionStudent.id, active: actionStudent.active, name: actionStudent.fullName })
+                setActionStudent(null)
+              }}
+            />
+          </>
+        ) : null}
+      </ActionSheet>
     </div>
   )
 }

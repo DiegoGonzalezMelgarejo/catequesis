@@ -1,13 +1,15 @@
 import { useCallback, useState } from 'react'
-import { ChevronRight, Edit3, Layers3, UserRoundX, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Edit3, Layers3, MoreHorizontal, UserRoundX, Users } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { ActionSheet, ActionSheetItem } from '@/components/app/action-sheet'
 import { AppCard } from '@/components/app/app-card'
 import { Badge } from '@/components/app/badge'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
 import { EmptyState } from '@/components/app/empty-state'
 import { EntityAvatar } from '@/components/app/entity-avatar'
+import { MobilePageActionBar } from '@/components/app/mobile-page-action-bar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
@@ -21,11 +23,13 @@ import { useAuth } from '@/hooks/use-auth'
 import { getGroupsPage, setGroupActive } from '@/services/group-service'
 
 export function GroupsPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [openForm, setOpenForm] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<EditableGroup | null>(null)
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
+  const [actionGroup, setActionGroup] = useState<Awaited<ReturnType<typeof getGroupsPage>>['items'][number] | null>(null)
 
   const fetchPage = useCallback(
     (cursor: Parameters<typeof getGroupsPage>[1], pageSize: number) => {
@@ -99,11 +103,12 @@ export function GroupsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar grupo" />
         {user.role === 'ADMIN' ? (
           <PrimaryButton
+            className="hidden sm:inline-flex"
             type="button"
             onClick={() => {
               setSelectedGroup(null)
@@ -120,83 +125,45 @@ export function GroupsPage() {
         <EmptyState title="Sin grupos" description="No se encontraron grupos para mostrar." icon={Layers3} />
       ) : (
         <>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="space-y-3">
             {filteredGroups.map((group) => {
-            const groupCatechistIds = data.userGroups.filter((assignment) => assignment.groupId === group.id).map((assignment) => assignment.userId)
-
             return (
               <AppCard key={group.id} interactive>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <Link
                     to={`/app/groups/${group.id}`}
-                    className="flex items-start gap-4 rounded-[1.5rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-4 transition hover:bg-primary/5"
+                    className="flex items-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3 transition hover:bg-primary/5"
                   >
-                    <EntityAvatar icon={Users} label={group.name} tone="warning" />
+                    <EntityAvatar icon={Users} label={group.name} tone="warning" className="size-14 sm:size-16" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-lg font-semibold text-foreground">{group.name}</p>
-                          <p className="text-sm text-muted-foreground">{group.schedule || 'Sin horario definido'}</p>
+                          <p className="text-base font-semibold text-foreground sm:text-lg">{group.name}</p>
+                          <p className="text-xs text-muted-foreground sm:text-sm">{group.schedule || 'Sin horario definido'}</p>
                         </div>
-                        <Badge variant={group.active ? 'success' : 'outline'}>
+                        <Badge variant={group.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
                           {group.active ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </div>
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        Toca la card para ver alumnos, asistencia por días y el resumen del grupo.
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge variant={group.active ? 'success' : 'outline'} className="sm:hidden">
+                          {group.active ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                        <Badge variant="outline">{group.studentCount} alumnos</Badge>
+                        <Badge variant="outline">{group.pendingActivities} pendientes</Badge>
+                      </div>
                     </div>
-                    <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" />
                   </Link>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                      <p className="text-muted-foreground">Catequistas</p>
-                      <p className="mt-1 font-medium">{group.catechists.join(', ') || 'Sin asignar'}</p>
-                    </div>
-                    <div className="rounded-[1.25rem] border border-white/70 bg-secondary/35 p-4 text-sm">
-                      <p className="text-muted-foreground">Alumnos activos</p>
-                      <p className="mt-1 font-medium">{group.studentCount}</p>
-                    </div>
+                  <div className="rounded-[1.1rem] border border-white/70 bg-white/70 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Catequistas:</span>{' '}
+                    {group.catechists.join(', ') || 'Sin asignar'}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <SecondaryButton asChild>
-                      <Link to={`/app/groups/${group.id}`}>Ver grupo</Link>
+                  <div className="flex items-center justify-end">
+                    <SecondaryButton type="button" size="icon" onClick={() => setActionGroup(group)}>
+                      <MoreHorizontal className="size-4" />
                     </SecondaryButton>
-                    <SecondaryButton asChild>
-                      <Link to={`/app/attendance?groupId=${group.id}`}>Asistencias</Link>
-                    </SecondaryButton>
-                    <SecondaryButton asChild>
-                      <Link to={`/app/activities?groupId=${group.id}`}>Actividades</Link>
-                    </SecondaryButton>
-                    {user.role === 'ADMIN' ? (
-                      <>
-                        <SecondaryButton
-                          type="button"
-                          onClick={() => {
-                            setSelectedGroup({
-                              id: group.id,
-                              name: group.name,
-                              schedule: group.schedule,
-                              description: group.description,
-                              catechistIds: groupCatechistIds,
-                            })
-                            setOpenForm(true)
-                          }}
-                        >
-                          <Edit3 className="size-4" />
-                          Editar
-                        </SecondaryButton>
-                        <SecondaryButton
-                          type="button"
-                          onClick={() => setConfirmState({ id: group.id, active: group.active, name: group.name })}
-                        >
-                          <UserRoundX className="size-4" />
-                          {group.active ? 'Inactivar' : 'Reactivar'}
-                        </SecondaryButton>
-                      </>
-                    ) : null}
                   </div>
                 </div>
               </AppCard>
@@ -215,6 +182,22 @@ export function GroupsPage() {
           />
         </>
       )}
+
+      {user.role === 'ADMIN' ? (
+        <MobilePageActionBar>
+          <PrimaryButton
+            className="w-full"
+            type="button"
+            onClick={() => {
+              setSelectedGroup(null)
+              setOpenForm(true)
+            }}
+          >
+            <Layers3 className="size-4" />
+            Nuevo grupo
+          </PrimaryButton>
+        </MobilePageActionBar>
+      ) : null}
 
       {user.role === 'ADMIN' ? (
         <GroupForm open={openForm} onOpenChange={setOpenForm} group={selectedGroup} catechists={catechistOptions} />
@@ -236,6 +219,78 @@ export function GroupsPage() {
         confirmLabel={confirmState?.active ? 'Inactivar' : 'Reactivar'}
         onConfirm={handleToggleGroup}
       />
+
+      <ActionSheet
+        open={Boolean(actionGroup)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActionGroup(null)
+          }
+        }}
+        title={actionGroup?.name ?? 'Acciones del grupo'}
+        description="Selecciona la acción que deseas realizar."
+      >
+        <ActionSheetItem
+          label="Ver grupo"
+          icon={Users}
+          onClick={() => {
+            if (!actionGroup) return
+            navigate(`/app/groups/${actionGroup.id}`)
+            setActionGroup(null)
+          }}
+        />
+        <ActionSheetItem
+          label="Ver asistencias"
+          icon={Layers3}
+          onClick={() => {
+            if (!actionGroup) return
+            navigate(`/app/attendance?groupId=${actionGroup.id}`)
+            setActionGroup(null)
+          }}
+        />
+        <ActionSheetItem
+          label="Ver actividades"
+          icon={Edit3}
+          onClick={() => {
+            if (!actionGroup) return
+            navigate(`/app/activities?groupId=${actionGroup.id}`)
+            setActionGroup(null)
+          }}
+        />
+        {user.role === 'ADMIN' ? (
+          <>
+            <ActionSheetItem
+              label="Editar grupo"
+              icon={Edit3}
+              onClick={() => {
+                if (!actionGroup) return
+                const groupCatechistIds = data.userGroups
+                  .filter((assignment) => assignment.groupId === actionGroup.id)
+                  .map((assignment) => assignment.userId)
+                setSelectedGroup({
+                  id: actionGroup.id,
+                  name: actionGroup.name,
+                  schedule: actionGroup.schedule,
+                  description: actionGroup.description,
+                  catechistIds: groupCatechistIds,
+                })
+                setOpenForm(true)
+                setActionGroup(null)
+              }}
+            />
+            <ActionSheetItem
+              label={actionGroup?.active ? 'Inactivar grupo' : 'Reactivar grupo'}
+              icon={UserRoundX}
+              tone={actionGroup?.active ? 'destructive' : 'default'}
+              onClick={() => {
+                if (!actionGroup) return
+                setConfirmState({ id: actionGroup.id, active: actionGroup.active, name: actionGroup.name })
+                setActionGroup(null)
+              }}
+            />
+          </>
+        ) : null}
+      </ActionSheet>
     </div>
   )
 }

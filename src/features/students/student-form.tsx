@@ -1,16 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LoaderCircle } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { AppInput } from '@/components/app/app-input'
 import { Badge } from '@/components/app/badge'
+import { FormStepIndicator } from '@/components/app/form-step-indicator'
 import { Modal } from '@/components/app/modal'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
 import { Button } from '@/components/ui/button'
 import { saveStudent } from '@/services/student-service'
 import type { SelectOption } from '@/types/models'
@@ -76,6 +76,7 @@ function createEmptyGuardian(isPrimary = false) {
 }
 
 export function StudentForm({ open, onOpenChange, student, groups, sacraments }: StudentFormProps) {
+  const [currentStep, setCurrentStep] = useState(0)
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -90,6 +91,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
   })
 
   useEffect(() => {
+    setCurrentStep(0)
     form.reset({
       firstName: student?.firstName ?? '',
       lastName: student?.lastName ?? '',
@@ -106,6 +108,18 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
 
   const selectedSacraments = form.watch('sacramentIds')
   const birthDate = form.watch('birthDate')
+  const steps = ['Datos', 'Sacramentos', 'Acudientes']
+
+  async function goNextStep() {
+    if (currentStep === 0) {
+      const valid = await form.trigger(['firstName', 'lastName', 'birthDate', 'groupId'])
+      if (!valid) {
+        return
+      }
+    }
+
+    setCurrentStep((step) => Math.min(step + 1, steps.length - 1))
+  }
 
   async function onSubmit(values: StudentFormValues) {
     try {
@@ -138,22 +152,29 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
           <SecondaryButton type="button" onClick={() => onOpenChange(false)}>
             Cancelar
           </SecondaryButton>
-          <PrimaryButton type="submit" form="student-form" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            Guardar
-          </PrimaryButton>
+          {currentStep > 0 ? (
+            <SecondaryButton type="button" onClick={() => setCurrentStep((step) => Math.max(0, step - 1))}>
+              Anterior
+            </SecondaryButton>
+          ) : null}
+          {currentStep < steps.length - 1 ? (
+            <PrimaryButton type="button" onClick={() => void goNextStep()}>
+              Siguiente
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton type="submit" form="student-form" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
+              Guardar
+            </PrimaryButton>
+          )}
         </>
       }
     >
-      <form id="student-form" onSubmit={form.handleSubmit(onSubmit)}>
-        <Tabs defaultValue="data">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="data">Datos</TabsTrigger>
-            <TabsTrigger value="sacraments">Sacramentos</TabsTrigger>
-            <TabsTrigger value="guardians">Acudientes</TabsTrigger>
-          </TabsList>
+      <form id="student-form" className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+        <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
-          <TabsContent value="data" className="space-y-5">
+        {currentStep === 0 ? (
+          <div className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <AppInput label="Nombres" error={form.formState.errors.firstName?.message} {...form.register('firstName')} />
               <AppInput label="Apellidos" error={form.formState.errors.lastName?.message} {...form.register('lastName')} />
@@ -183,9 +204,11 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
             {birthDate ? (
               <Badge variant="secondary">Edad calculada: {calculateAge(birthDate)} años</Badge>
             ) : null}
-          </TabsContent>
+          </div>
+        ) : null}
 
-          <TabsContent value="sacraments" className="space-y-4">
+        {currentStep === 1 ? (
+          <div className="space-y-4">
             <div className="space-y-1">
               <p className="text-sm font-medium">Sacramentos recibidos</p>
               <p className="text-sm text-muted-foreground">
@@ -213,9 +236,11 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
                 )
               })}
             </div>
-          </TabsContent>
+          </div>
+        ) : null}
 
-          <TabsContent value="guardians" className="space-y-4">
+        {currentStep === 2 ? (
+          <div className="space-y-4">
             {[0, 1].map((index) => (
               <div key={index} className="rounded-3xl border bg-secondary/35 p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -239,8 +264,8 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
                 </div>
               </div>
             ))}
-          </TabsContent>
-        </Tabs>
+          </div>
+        ) : null}
       </form>
     </Modal>
   )
