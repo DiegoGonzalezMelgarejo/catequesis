@@ -63,6 +63,7 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
 
   const selectedCatechists = form.watch('catechistIds')
   const steps = ['Datos', 'Catequistas']
+  const submitForm = form.handleSubmit(onSubmit)
 
   async function goNextStep() {
     const valid = await form.trigger(['name'])
@@ -111,7 +112,7 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
               Siguiente
             </PrimaryButton>
           ) : (
-            <PrimaryButton type="submit" form="group-form" disabled={form.formState.isSubmitting}>
+            <PrimaryButton type="button" onClick={() => void submitForm()} disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
               Guardar
             </PrimaryButton>
@@ -119,7 +120,7 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
         </>
       }
     >
-      <form id="group-form" className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+      <form id="group-form" className="space-y-5" onSubmit={submitForm}>
         <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
         {currentStep === 0 ? (

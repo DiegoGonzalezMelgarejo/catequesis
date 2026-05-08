@@ -1,18 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LoaderCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { AppInput } from '@/components/app/app-input'
-import { FormStepIndicator } from '@/components/app/form-step-indicator'
 import { Modal } from '@/components/app/modal'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { Button } from '@/components/ui/button'
-import type { SelectOption } from '@/types/models'
-import { cn } from '@/utils/cn'
 import { saveCatechist } from '@/services/user-service'
 
 const createSchema = (isEditing: boolean) =>
@@ -24,7 +20,6 @@ const createSchema = (isEditing: boolean) =>
       : z.string().min(6, 'La contrasena debe tener minimo 6 caracteres.'),
     phone: z.string().optional(),
     email: z.string().email('Correo invalido.').optional().or(z.literal('')),
-    groupIds: z.array(z.string()),
   })
 
 type CatechistFormValues = z.infer<ReturnType<typeof createSchema>>
@@ -35,19 +30,16 @@ export type EditableCatechist = {
   username: string
   phone?: string
   email?: string
-  groupIds: string[]
 }
 
 type CatechistFormProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   catechist?: EditableCatechist | null
-  groups: SelectOption[]
 }
 
-export function CatechistForm({ open, onOpenChange, catechist, groups }: CatechistFormProps) {
+export function CatechistForm({ open, onOpenChange, catechist }: CatechistFormProps) {
   const isEditing = Boolean(catechist)
-  const [currentStep, setCurrentStep] = useState(0)
   const form = useForm<CatechistFormValues>({
     resolver: zodResolver(createSchema(isEditing)),
     defaultValues: {
@@ -56,33 +48,20 @@ export function CatechistForm({ open, onOpenChange, catechist, groups }: Catechi
       password: '',
       phone: '',
       email: '',
-      groupIds: [],
     },
   })
 
   useEffect(() => {
-    setCurrentStep(0)
     form.reset({
       fullName: catechist?.fullName ?? '',
       username: catechist?.username ?? '',
       password: '',
       phone: catechist?.phone ?? '',
       email: catechist?.email ?? '',
-      groupIds: catechist?.groupIds ?? [],
     })
   }, [catechist, form, open])
 
-  const selectedGroupIds = form.watch('groupIds')
-  const steps = ['Datos', 'Grupos']
-
-  async function goNextStep() {
-    const valid = await form.trigger(['fullName', 'username', 'password', 'email'])
-    if (!valid) {
-      return
-    }
-
-    setCurrentStep(1)
-  }
+  const submitForm = form.handleSubmit(onSubmit)
 
   async function onSubmit(values: CatechistFormValues) {
     try {
@@ -93,7 +72,6 @@ export function CatechistForm({ open, onOpenChange, catechist, groups }: Catechi
         password: values.password,
         phone: values.phone,
         email: values.email,
-        groupIds: values.groupIds,
       })
 
       toast.success(isEditing ? 'Catequista actualizado.' : 'Catequista creado.')
@@ -108,78 +86,34 @@ export function CatechistForm({ open, onOpenChange, catechist, groups }: Catechi
       open={open}
       onOpenChange={onOpenChange}
       title={isEditing ? 'Editar catequista' : 'Nuevo catequista'}
-      description="Crea credenciales locales y asigna grupos visibles para el catequista."
+      description="Crea las credenciales del catequista. La asignación de grupos se realiza desde el módulo de grupos."
       footer={
         <>
           <SecondaryButton type="button" onClick={() => onOpenChange(false)}>
             Cancelar
           </SecondaryButton>
-          {currentStep > 0 ? (
-            <SecondaryButton type="button" onClick={() => setCurrentStep(0)}>
-              Anterior
-            </SecondaryButton>
-          ) : null}
-          {currentStep === 0 ? (
-            <PrimaryButton type="button" onClick={() => void goNextStep()}>
-              Siguiente
-            </PrimaryButton>
-          ) : (
-            <PrimaryButton type="submit" form="catechist-form" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
-              Guardar
-            </PrimaryButton>
-          )}
+          <PrimaryButton type="button" onClick={() => void submitForm()} disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
+            Guardar
+          </PrimaryButton>
         </>
       }
     >
-      <form id="catechist-form" className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
-        <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
-
-        {currentStep === 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <AppInput label="Nombre completo" error={form.formState.errors.fullName?.message} {...form.register('fullName')} />
-            <AppInput label="Usuario" error={form.formState.errors.username?.message} {...form.register('username')} />
-            <AppInput
-              label={isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}
-              type="password"
-              error={form.formState.errors.password?.message}
-              {...form.register('password')}
-            />
-            <AppInput label="Teléfono" {...form.register('phone')} />
-            <div className="sm:col-span-2">
-              <AppInput label="Correo" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
-            </div>
+      <form id="catechist-form" className="space-y-5" onSubmit={submitForm}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <AppInput label="Nombre completo" error={form.formState.errors.fullName?.message} {...form.register('fullName')} />
+          <AppInput label="Usuario" error={form.formState.errors.username?.message} {...form.register('username')} />
+          <AppInput
+            label={isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+            type="password"
+            error={form.formState.errors.password?.message}
+            {...form.register('password')}
+          />
+          <AppInput label="Teléfono" {...form.register('phone')} />
+          <div className="sm:col-span-2">
+            <AppInput label="Correo" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div>
-              <p className="text-sm font-medium">Grupos asignados</p>
-              <p className="text-sm text-muted-foreground">Solo estos grupos aparecerán en su panel.</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {groups.map((group) => {
-                const selected = selectedGroupIds.includes(group.value)
-
-                return (
-                  <Button
-                    key={group.value}
-                    type="button"
-                    variant={selected ? 'default' : 'outline'}
-                    className={cn('justify-start rounded-2xl', !selected && 'bg-white')}
-                    onClick={() => {
-                      const nextValue = selected
-                        ? selectedGroupIds.filter((groupId) => groupId !== group.value)
-                        : [...selectedGroupIds, group.value]
-                      form.setValue('groupIds', nextValue, { shouldDirty: true })
-                    }}
-                  >
-                    {group.label}
-                  </Button>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        </div>
       </form>
     </Modal>
   )

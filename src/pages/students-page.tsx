@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BookUser, Edit3, Eye, MoreHorizontal, UserRound, UserRoundX } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -16,6 +16,7 @@ import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
+import { ViewModeToggle, type ViewMode } from '@/components/app/view-mode-toggle'
 import { listDocuments } from '@/database/firestore-repository'
 import { StudentForm, type EditableStudent } from '@/features/students/student-form'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -34,6 +35,17 @@ export function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<EditableStudent | null>(null)
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
   const [actionStudent, setActionStudent] = useState<Awaited<ReturnType<typeof getStudentsPage>>['items'][number] | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === 'undefined') {
+      return 'cards'
+    }
+
+    return (window.localStorage.getItem('students-view-mode') as ViewMode | null) ?? 'cards'
+  })
+
+  useEffect(() => {
+    window.localStorage.setItem('students-view-mode', viewMode)
+  }, [viewMode])
 
   const fetchPage = useCallback(
     (cursor: Parameters<typeof getStudentsPage>[1], pageSize: number) => {
@@ -119,7 +131,7 @@ export function StudentsPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem] sm:items-center">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem] lg:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-center xl:flex-1">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar alumno" />
           <select className="h-11 rounded-xl border border-input bg-white px-4 text-sm" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
             <option value="">Todos los grupos</option>
@@ -127,8 +139,11 @@ export function StudentsPage() {
               <option key={group.id} value={group.id}>
                 {group.name}
               </option>
-            ))}
+              ))}
           </select>
+          <div className="sm:col-span-2 lg:col-span-1">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          </div>
         </div>
 
         {user.role === 'ADMIN' ? (
@@ -149,51 +164,122 @@ export function StudentsPage() {
             <EmptyState title="Sin alumnos" description="No hay alumnos para el filtro actual." icon={BookUser} />
           ) : (
             <div className="space-y-4">
-              <div className="space-y-3">
-                {filteredStudents.map((student) => {
-                return (
-                  <AppCard key={student.id} interactive>
-                    <div className="space-y-3">
-                      <Link
-                        to={`/app/students/${student.id}`}
-                        className="flex items-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3 transition hover:bg-primary/5"
-                      >
-                        <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-base font-semibold text-foreground sm:text-lg">{student.fullName}</p>
-                              <p className="text-xs text-muted-foreground sm:text-sm">{student.groupName} • {student.age} años</p>
+              {viewMode === 'cards' ? (
+                <div className="space-y-3">
+                  {filteredStudents.map((student) => (
+                    <AppCard key={student.id} interactive>
+                      <div className="space-y-3">
+                        <Link
+                          to={`/app/students/${student.id}`}
+                          className="flex items-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-primary/6 via-white to-cyan-400/5 p-3 transition hover:bg-primary/5"
+                        >
+                          <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-base font-semibold text-foreground sm:text-lg">{student.fullName}</p>
+                                <p className="text-xs text-muted-foreground sm:text-sm">{student.groupName} • {student.age} años</p>
+                              </div>
+                              <Badge variant={student.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
+                                {student.active ? 'Activo' : 'Inactivo'}
+                              </Badge>
                             </div>
-                            <Badge variant={student.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
-                              {student.active ? 'Activo' : 'Inactivo'}
-                            </Badge>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Badge variant={student.active ? 'success' : 'outline'} className="sm:hidden">
+                                {student.active ? 'Activo' : 'Inactivo'}
+                              </Badge>
+                              <Badge variant="outline">{student.guardianCount} acudientes</Badge>
+                              <Badge variant="outline">{student.sacramentCount} sacramentos</Badge>
+                            </div>
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            <Badge variant={student.active ? 'success' : 'outline'} className="sm:hidden">
-                              {student.active ? 'Activo' : 'Inactivo'}
-                            </Badge>
-                            <Badge variant="outline">{student.guardianCount} acudientes</Badge>
-                            <Badge variant="outline">{student.sacramentCount} sacramentos</Badge>
-                          </div>
+                        </Link>
+
+                        <div className="rounded-[1.1rem] border border-white/70 bg-white/70 px-3 py-2 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">Observación:</span>{' '}
+                          {student.observations || 'Sin observaciones registradas.'}
                         </div>
-                      </Link>
 
-                      <div className="rounded-[1.1rem] border border-white/70 bg-white/70 px-3 py-2 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">Observación:</span>{' '}
-                        {student.observations || 'Sin observaciones registradas.'}
+                        <div className="flex items-center justify-end">
+                          <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
+                            <MoreHorizontal className="size-4" />
+                          </SecondaryButton>
+                        </div>
                       </div>
+                    </AppCard>
+                  ))}
+                </div>
+              ) : null}
 
-                      <div className="flex items-center justify-end">
+              {viewMode === 'list' ? (
+                <AppCard>
+                  <div className="divide-y divide-border/70">
+                    {filteredStudents.map((student) => (
+                      <div key={student.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          onClick={() => navigate(`/app/students/${student.id}`)}
+                        >
+                          <EntityAvatar icon={UserRound} label={student.fullName} className="size-12" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-semibold">{student.fullName}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {student.groupName} • {student.age} años • {student.guardianCount} acudientes
+                            </p>
+                          </div>
+                        </button>
+                        <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
                         <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
                           <MoreHorizontal className="size-4" />
                         </SecondaryButton>
                       </div>
-                    </div>
-                  </AppCard>
-                )
-                })}
-              </div>
+                    ))}
+                  </div>
+                </AppCard>
+              ) : null}
+
+              {viewMode === 'table' ? (
+                <AppCard>
+                  <div className="no-scrollbar overflow-x-auto">
+                    <table className="min-w-[48rem] w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/70 text-left text-muted-foreground">
+                          <th className="px-3 py-3 font-medium">Alumno</th>
+                          <th className="px-3 py-3 font-medium">Grupo</th>
+                          <th className="px-3 py-3 font-medium">Edad</th>
+                          <th className="px-3 py-3 font-medium">Acudientes</th>
+                          <th className="px-3 py-3 font-medium">Sacramentos</th>
+                          <th className="px-3 py-3 font-medium">Estado</th>
+                          <th className="px-3 py-3 font-medium text-right">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredStudents.map((student) => (
+                          <tr key={student.id} className="border-b border-border/40">
+                            <td className="px-3 py-3">
+                              <button type="button" className="font-medium text-left hover:text-primary" onClick={() => navigate(`/app/students/${student.id}`)}>
+                                {student.fullName}
+                              </button>
+                            </td>
+                            <td className="px-3 py-3 text-muted-foreground">{student.groupName}</td>
+                            <td className="px-3 py-3">{student.age}</td>
+                            <td className="px-3 py-3">{student.guardianCount}</td>
+                            <td className="px-3 py-3">{student.sacramentCount}</td>
+                            <td className="px-3 py-3">
+                              <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
+                                <MoreHorizontal className="size-4" />
+                              </SecondaryButton>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </AppCard>
+              ) : null}
 
               <PaginationControls
                 page={page}

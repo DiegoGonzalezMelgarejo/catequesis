@@ -21,7 +21,7 @@ export type CatechistInput = {
   password?: string
   phone?: string
   email?: string
-  groupIds: string[]
+  groupIds?: string[]
 }
 
 export type CatechistOverview = User & {
@@ -149,23 +149,26 @@ export async function saveCatechist(input: CatechistInput) {
     ...createLocalMeta(existingUser?.createdAt, 'synced'),
   }
 
-  const existingAssignmentIds = userGroups
-    .filter((assignment) => assignment.userId === userId)
-    .map((assignment) => assignment.id)
-
   await putDocument('users', user)
-  await deleteDocuments('userGroups', existingAssignmentIds)
 
-  if (input.groupIds.length > 0) {
-    await putDocuments(
-      'userGroups',
-      input.groupIds.map((groupId) => ({
-        id: createId(),
-        userId,
-        groupId,
-        ...createLocalMeta(undefined, 'synced'),
-      })),
-    )
+  if (input.groupIds) {
+    const existingAssignmentIds = userGroups
+      .filter((assignment) => assignment.userId === userId)
+      .map((assignment) => assignment.id)
+
+    await deleteDocuments('userGroups', existingAssignmentIds)
+
+    if (input.groupIds.length > 0) {
+      await putDocuments(
+        'userGroups',
+        input.groupIds.map((groupId) => ({
+          id: createId(),
+          userId,
+          groupId,
+          ...createLocalMeta(undefined, 'synced'),
+        })),
+      )
+    }
   }
 
   notifyDataChanged()

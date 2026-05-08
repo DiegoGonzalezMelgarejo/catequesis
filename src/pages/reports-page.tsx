@@ -1,4 +1,4 @@
-import { ChartColumn, Download, Share2, TriangleAlert } from 'lucide-react'
+import { ChartColumn, Download, FileText, Share2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AppCard } from '@/components/app/app-card'
@@ -6,13 +6,16 @@ import { Badge } from '@/components/app/badge'
 import { EmptyState } from '@/components/app/empty-state'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PrimaryButton } from '@/components/app/primary-button'
+import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useAuth } from '@/hooks/use-auth'
 import { getAlertItems } from '@/services/alert-service'
+import { getGroupDetail } from '@/services/group-service'
 import { getReportData } from '@/services/report-service'
 import { exportCsvFile } from '@/utils/csv'
+import { exportAttendanceMatrixPdf, exportGradesMatrixPdf } from '@/utils/group-report'
 
 export function ReportsPage() {
   const { user } = useAuth()
@@ -32,6 +35,7 @@ export function ReportsPage() {
     return <PageSkeleton variant="dashboard" />
   }
 
+  const currentUser = user
   const report = data.report
   const alerts = data.alerts
 
@@ -73,6 +77,38 @@ export function ReportsPage() {
       toast.success(result === 'shared' ? 'Alertas compartidas.' : 'Alertas descargadas.')
     } catch {
       toast.error('No fue posible exportar las alertas.')
+    }
+  }
+
+  async function handleExportGroupAttendancePdf(groupId: string) {
+    try {
+      const detail = await getGroupDetail(currentUser, groupId)
+
+      if (!detail) {
+        toast.error('No fue posible cargar el grupo para exportar asistencia.')
+        return
+      }
+
+      await exportAttendanceMatrixPdf(detail, detail.attendanceSessions, detail.attendanceMatrix)
+      toast.success('PDF de asistencias generado.')
+    } catch {
+      toast.error('No fue posible exportar el PDF de asistencias.')
+    }
+  }
+
+  async function handleExportGroupGradesPdf(groupId: string) {
+    try {
+      const detail = await getGroupDetail(currentUser, groupId)
+
+      if (!detail) {
+        toast.error('No fue posible cargar el grupo para exportar notas.')
+        return
+      }
+
+      await exportGradesMatrixPdf(detail, detail.allActivities)
+      toast.success('PDF de notas generado.')
+    } catch {
+      toast.error('No fue posible exportar el PDF de notas.')
     }
   }
 
@@ -118,6 +154,18 @@ export function ReportsPage() {
                       </div>
                       <Badge>{row.students} alumnos</Badge>
                     </div>
+                    {user.role === 'ADMIN' ? (
+                      <div className="flex flex-wrap gap-2">
+                        <PrimaryButton type="button" onClick={() => void handleExportGroupAttendancePdf(row.groupId)}>
+                          <FileText className="size-4" />
+                          PDF asistencias
+                        </PrimaryButton>
+                        <PrimaryButton type="button" onClick={() => void handleExportGroupGradesPdf(row.groupId)}>
+                          <FileText className="size-4" />
+                          PDF notas
+                        </PrimaryButton>
+                      </div>
+                    ) : null}
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="rounded-3xl bg-secondary/35 p-4 text-sm">
                         <p className="text-muted-foreground">Asistencia</p>
@@ -143,12 +191,26 @@ export function ReportsPage() {
           <div className="space-y-3">
             {report.rows.map((row) => (
               <AppCard key={`${row.groupId}-attendance`}>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-medium">{row.groupName}</p>
                     <p className="text-sm text-muted-foreground">{row.students} alumnos registrados</p>
                   </div>
-                  <Badge variant="secondary">{row.attendanceRate.toFixed(1)}%</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">{row.attendanceRate.toFixed(1)}%</Badge>
+                    {user.role === 'ADMIN' ? (
+                      <>
+                        <SecondaryButton type="button" onClick={() => void handleExportGroupAttendancePdf(row.groupId)}>
+                          <Download className="size-4" />
+                          PDF asistencias
+                        </SecondaryButton>
+                        <SecondaryButton type="button" onClick={() => void handleExportGroupGradesPdf(row.groupId)}>
+                          <Download className="size-4" />
+                          PDF notas
+                        </SecondaryButton>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </AppCard>
             ))}

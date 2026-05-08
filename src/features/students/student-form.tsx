@@ -109,6 +109,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
   const selectedSacraments = form.watch('sacramentIds')
   const birthDate = form.watch('birthDate')
   const steps = ['Datos', 'Sacramentos', 'Acudientes']
+  const submitForm = form.handleSubmit(onSubmit)
 
   async function goNextStep() {
     if (currentStep === 0) {
@@ -162,7 +163,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
               Siguiente
             </PrimaryButton>
           ) : (
-            <PrimaryButton type="submit" form="student-form" disabled={form.formState.isSubmitting}>
+            <PrimaryButton type="button" onClick={() => void submitForm()} disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
               Guardar
             </PrimaryButton>
@@ -170,7 +171,7 @@ export function StudentForm({ open, onOpenChange, student, groups, sacraments }:
         </>
       }
     >
-      <form id="student-form" className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+      <form id="student-form" className="space-y-5" onSubmit={submitForm}>
         <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
         {currentStep === 0 ? (
