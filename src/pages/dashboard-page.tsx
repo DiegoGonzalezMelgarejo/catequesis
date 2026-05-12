@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom'
 import { AppCard } from '@/components/app/app-card'
 import { Badge } from '@/components/app/badge'
 import { PageSkeleton } from '@/components/app/page-skeleton'
+import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
 import { YearManagementPanel } from '@/components/app/year-management-panel'
@@ -278,6 +279,9 @@ function AdminDashboard({ userName, dashboard, activeYear, availableYears, setAc
 
   return (
     <div className="space-y-5 sm:space-y-6 xl:space-y-7">
+      <div className="flex justify-end">
+        <RefreshDataButton cachePrefixes={['dashboard-', 'alerts-', 'nav-', 'access-']} />
+      </div>
       <DashboardHero
         title="Controla la operacion del año pastoral desde una vista clara y ejecutiva."
         description="Revisa el estado general, entra rápido a la tarea principal del día y mantén visibles los puntos que requieren seguimiento antes de la próxima jornada."
@@ -378,6 +382,9 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
 
   return (
     <div className="space-y-5 sm:space-y-6 xl:space-y-7">
+      <div className="flex justify-end">
+        <RefreshDataButton cachePrefixes={['dashboard-', 'alerts-', 'nav-', 'access-']} />
+      </div>
       <DashboardHero
         title="Organiza tu jornada con accesos directos y un estado visible de tus grupos."
         description="Empieza por la asistencia o por el grupo del día, revisa alertas relevantes y mantén a la mano el contexto del año de trabajo sin perder tiempo navegando."

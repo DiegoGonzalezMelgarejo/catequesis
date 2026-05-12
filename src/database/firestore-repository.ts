@@ -94,6 +94,87 @@ type PaginatedQueryOptions = {
   cursor?: QueryDocumentSnapshot<DocumentData> | null
 }
 
+type ReadOptions = {
+  source?: 'server-first' | 'cache-first'
+  cacheKey?: string
+  maxAgeMs?: number
+}
+
+const READ_CACHE_PREFIX = 'catequesis-read-cache:'
+
+function getReadCacheTimestamp(cacheKey: string) {
+  if (typeof localStorage === 'undefined') {
+    return null
+  }
+
+  const rawValue = localStorage.getItem(`${READ_CACHE_PREFIX}${cacheKey}`)
+  if (!rawValue) {
+    return null
+  }
+
+  const timestamp = Number(rawValue)
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+function setReadCacheTimestamp(cacheKey: string) {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  localStorage.setItem(`${READ_CACHE_PREFIX}${cacheKey}`, String(Date.now()))
+}
+
+function resolveReadSource(options?: ReadOptions) {
+  if (options?.source) {
+    return options.source
+  }
+
+  if (!options?.cacheKey || !options.maxAgeMs) {
+    return 'server-first' as const
+  }
+
+  const timestamp = getReadCacheTimestamp(options.cacheKey)
+  if (timestamp != null && Date.now() - timestamp <= options.maxAgeMs) {
+    return 'cache-first' as const
+  }
+
+  return 'server-first' as const
+}
+
+function markReadCache(options?: ReadOptions) {
+  if (!options?.cacheKey) {
+    return
+  }
+
+  setReadCacheTimestamp(options.cacheKey)
+}
+
+export function clearReadCacheEntry(cacheKey: string) {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  localStorage.removeItem(`${READ_CACHE_PREFIX}${cacheKey}`)
+}
+
+export function clearReadCacheEntriesByPrefix(prefix: string) {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  const targetPrefix = `${READ_CACHE_PREFIX}${prefix}`
+  const keysToRemove: string[] = []
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
+    if (key && key.startsWith(targetPrefix)) {
+      keysToRemove.push(key)
+    }
+  }
+
+  keysToRemove.forEach((key) => localStorage.removeItem(key))
+}
+
 export type PaginatedDocumentsResult<T> = {
   items: T[]
   nextCursor: QueryDocumentSnapshot<DocumentData> | null
@@ -112,6 +193,18 @@ async function getQuerySnapshotServerFirst<T extends DocumentData>(
   return getDocsFromCache(queryRef)
 }
 
+async function getQuerySnapshotCacheFirst<T extends DocumentData>(
+  queryRef: Query<T>,
+): Promise<QuerySnapshot<T>> {
+  try {
+    return await getDocsFromCache(queryRef)
+  } catch {
+    // If the cache is empty or unavailable, fall back to server.
+  }
+
+  return getDocsFromServer(queryRef)
+}
+
 async function getDocumentSnapshotServerFirst<T extends DocumentData>(
   docRef: DocumentReference<T>,
 ): Promise<DocumentSnapshot<T>> {
@@ -122,6 +215,36 @@ async function getDocumentSnapshotServerFirst<T extends DocumentData>(
   }
 
   return getDocFromCache(docRef)
+}
+
+async function getDocumentSnapshotCacheFirst<T extends DocumentData>(
+  docRef: DocumentReference<T>,
+): Promise<DocumentSnapshot<T>> {
+  try {
+    return await getDocFromCache(docRef)
+  } catch {
+    // If the cache is empty or unavailable, fall back to server.
+  }
+
+  return getDocFromServer(docRef)
+}
+
+function getQuerySnapshotBySource<T extends DocumentData>(
+  queryRef: Query<T>,
+  source: ReadOptions['source'] = 'server-first',
+) {
+  return source === 'cache-first'
+    ? getQuerySnapshotCacheFirst(queryRef)
+    : getQuerySnapshotServerFirst(queryRef)
+}
+
+function getDocumentSnapshotBySource<T extends DocumentData>(
+  docRef: DocumentReference<T>,
+  source: ReadOptions['source'] = 'server-first',
+) {
+  return source === 'cache-first'
+    ? getDocumentSnapshotCacheFirst(docRef)
+    : getDocumentSnapshotServerFirst(docRef)
 }
 
 function buildFirestoreQuery(
@@ -158,16 +281,24 @@ function buildFirestoreQuery(
   return query(getCollectionRef(collectionKey), ...constraints)
 }
 
-export async function listDocuments<T extends DocumentData>(collectionKey: FirestoreCollectionKey) {
-  const snapshot = await getQuerySnapshotServerFirst(query(getCollectionRef(collectionKey)))
+export async function listDocuments<T extends DocumentData>(collectionKey: FirestoreCollectionKey, options?: ReadOptions) {
+  const source = resolveReadSource(options)
+  const snapshot = await getQuerySnapshotBySource(query(getCollectionRef(collectionKey)), source)
+  if (source === 'server-first') {
+    markReadCache(options)
+  }
   return sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({
     id: entry.id,
     ...entry.data(),
   }))))
 }
 
-export async function getDocumentById<T extends DocumentData>(collectionKey: FirestoreCollectionKey, id: string) {
-  const snapshot = await getDocumentSnapshotServerFirst(getDocRef(collectionKey, id))
+export async function getDocumentById<T extends DocumentData>(collectionKey: FirestoreCollectionKey, id: string, options?: ReadOptions) {
+  const source = resolveReadSource(options)
+  const snapshot = await getDocumentSnapshotBySource(getDocRef(collectionKey, id), source)
+  if (source === 'server-first') {
+    markReadCache(options)
+  }
 
   if (!snapshot.exists()) {
     return undefined
@@ -189,32 +320,44 @@ export async function getDocumentsByField<T extends DocumentData>(
   collectionKey: FirestoreCollectionKey,
   field: string,
   value: string | boolean | number,
+  options?: ReadOptions,
 ) {
-  const snapshot = await getQuerySnapshotServerFirst(
+  const source = resolveReadSource(options)
+  const snapshot = await getQuerySnapshotBySource(
     query(getCollectionRef(collectionKey), where(field, '==', value)),
+    source,
   )
+  if (source === 'server-first') {
+    markReadCache(options)
+  }
   return sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({
     id: entry.id,
     ...entry.data(),
   }))))
 }
 
-export async function getDocumentsByIds<T extends DocumentData>(collectionKey: FirestoreCollectionKey, ids: string[]) {
+export async function getDocumentsByIds<T extends DocumentData>(collectionKey: FirestoreCollectionKey, ids: string[], options?: ReadOptions) {
   if (ids.length === 0) {
     return [] as T[]
   }
 
   const results: T[] = []
 
+  const source = resolveReadSource(options)
   for (let index = 0; index < ids.length; index += 10) {
     const chunk = ids.slice(index, index + 10)
-    const snapshot = await getQuerySnapshotServerFirst(
+    const snapshot = await getQuerySnapshotBySource(
       query(getCollectionRef(collectionKey), where(documentId(), 'in', chunk)),
+      source,
     )
 
     results.push(
       ...sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))),
     )
+  }
+
+  if (source === 'server-first') {
+    markReadCache(options)
   }
 
   return results
@@ -224,6 +367,7 @@ export async function getDocumentsByFieldIn<T extends DocumentData>(
   collectionKey: FirestoreCollectionKey,
   field: string,
   values: string[],
+  options?: ReadOptions,
 ) {
   if (values.length === 0) {
     return [] as T[]
@@ -231,16 +375,22 @@ export async function getDocumentsByFieldIn<T extends DocumentData>(
 
   const results: T[] = []
 
+  const source = resolveReadSource(options)
   for (let index = 0; index < values.length; index += 10) {
     const chunk = values.slice(index, index + 10)
     const fieldRef = field === '__name__' ? documentId() : field
-    const snapshot = await getQuerySnapshotServerFirst(
+    const snapshot = await getQuerySnapshotBySource(
       query(getCollectionRef(collectionKey), where(fieldRef, 'in', chunk)),
+      source,
     )
 
     results.push(
       ...sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))),
     )
+  }
+
+  if (source === 'server-first') {
+    markReadCache(options)
   }
 
   return results
@@ -249,14 +399,20 @@ export async function getDocumentsByFieldIn<T extends DocumentData>(
 export async function paginateDocuments<T extends DocumentData>(
   collectionKey: FirestoreCollectionKey,
   options: PaginatedQueryOptions,
+  readOptions?: ReadOptions,
 ) {
   const limitCount = options.limitCount ?? 20
-  const snapshot = await getQuerySnapshotServerFirst(
+  const source = resolveReadSource(readOptions)
+  const snapshot = await getQuerySnapshotBySource(
     buildFirestoreQuery(collectionKey, {
       ...options,
       limitCount,
     }),
+    source,
   )
+  if (source === 'server-first') {
+    markReadCache(readOptions)
+  }
 
   return {
     items: sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))),

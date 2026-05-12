@@ -6,6 +6,7 @@ import { Badge } from '@/components/app/badge'
 import { EmptyState } from '@/components/app/empty-state'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PrimaryButton } from '@/components/app/primary-button'
+import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
@@ -126,6 +127,9 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <div className="flex justify-end">
+        <RefreshDataButton cachePrefixes={['reports-', 'alerts-', 'nav-', 'access-']} />
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard title="Grupos" value={report.totalGroups} icon={ChartColumn} />
         <SummaryCard title="Alumnos" value={report.totalStudents} icon={ChartColumn} />

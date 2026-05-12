@@ -1,5 +1,6 @@
 import {
   deleteDocuments,
+  getDocumentsByField,
   getDocumentsByFieldIn,
   getDocumentsByIds,
   getDocumentById,
@@ -226,11 +227,11 @@ export async function getGroupsPage(
 
   const groupIds = pageGroups.map((group) => group.id)
   const [users, userGroups, students, activities, attendanceSessions] = await Promise.all([
-    listDocuments<{ id: string; role: string; fullName: string }>('users'),
-    getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupIds),
-    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', groupIds),
-    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('activities', 'groupId', groupIds),
-    getDocumentsByFieldIn<{ id: string; groupId: string; date: string }>('attendanceSessions', 'groupId', groupIds),
+    getDocumentsByField<{ id: string; role: string; fullName: string }>('users', 'role', 'CATECHIST', { source: 'cache-first' }),
+    getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupIds, { source: 'cache-first' }),
+    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', groupIds, { source: 'cache-first' }),
+    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('activities', 'groupId', groupIds, { source: 'cache-first' }),
+    getDocumentsByFieldIn<{ id: string; groupId: string; date: string }>('attendanceSessions', 'groupId', groupIds, { source: 'cache-first' }),
   ])
 
   const activityIds = activities.map((activity) => activity.id)
@@ -281,8 +282,8 @@ export async function saveGroup(input: GroupInput) {
   const groupId = input.id ?? createId()
   const [existingGroup, userGroups, students] = await Promise.all([
     input.id ? getDocumentById<Group>('groups', input.id) : Promise.resolve(undefined),
-    listDocuments<{ id: string; groupId: string; userId: string }>('userGroups'),
-    listDocuments<{ id: string; groupId: string; year: number }>('students'),
+    getDocumentsByField<{ id: string; groupId: string; userId: string }>('userGroups', 'groupId', groupId),
+    getDocumentsByField<{ id: string; groupId: string; year: number }>('students', 'groupId', groupId),
   ])
 
   if (input.id && !existingGroup) {
@@ -300,7 +301,7 @@ export async function saveGroup(input: GroupInput) {
     ...createLocalMeta(existingGroup?.createdAt, 'synced'),
   })
 
-  const studentsInGroup = students.filter((student) => student.groupId === groupId && student.year !== input.year)
+  const studentsInGroup = students.filter((student) => student.year !== input.year)
 
   if (studentsInGroup.length > 0) {
     await putDocuments(
@@ -316,7 +317,7 @@ export async function saveGroup(input: GroupInput) {
 
   await deleteDocuments(
     'userGroups',
-    userGroups.filter((assignment) => assignment.groupId === groupId).map((assignment) => assignment.id),
+    userGroups.map((assignment) => assignment.id),
   )
 
   if (input.catechistIds.length > 0) {
@@ -343,9 +344,9 @@ export async function getGroupDetail(user: User, groupId: string) {
 
   const [group, users, userGroups, students, attendanceSessions, activities] = await Promise.all([
     getDocumentById<Group>('groups', groupId),
-    listDocuments<{ id: string; role: string; fullName: string }>('users'),
-    listDocuments<{ id: string; userId: string; groupId: string }>('userGroups'),
-    listDocuments<{
+    getDocumentsByField<{ id: string; role: string; fullName: string }>('users', 'role', 'CATECHIST', { source: 'cache-first' }),
+    getDocumentsByField<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupId, { source: 'cache-first' }),
+    getDocumentsByField<{
       id: string
       firstName: string
       lastName: string
@@ -354,9 +355,9 @@ export async function getGroupDetail(user: User, groupId: string) {
       observations?: string
       active: boolean
       groupId: string
-    }>('students'),
-    listDocuments<{ id: string; groupId: string; date: string; notes?: string }>('attendanceSessions'),
-    listDocuments<{
+    }>('students', 'groupId', groupId, { source: 'cache-first' }),
+    getDocumentsByField<{ id: string; groupId: string; date: string; notes?: string }>('attendanceSessions', 'groupId', groupId, { source: 'cache-first' }),
+    getDocumentsByField<{
       id: string
       groupId: string
       title: string
@@ -364,68 +365,102 @@ export async function getGroupDetail(user: User, groupId: string) {
       type: ActivityType
       maxGrade: number
       active: boolean
-    }>('activities'),
+    }>('activities', 'groupId', groupId, { source: 'cache-first' }),
   ])
 
   if (!group) {
     return null
   }
 
-  const [guardians, studentSacraments, attendanceRecords, activityGrades, checklistCatalog, documentRequirements, checklistProgress, documentProgress] = await Promise.all([
-    listDocuments<{
-      id: string
-      studentId: string
-      name: string
-      phone?: string
-      whatsapp?: string
-      email?: string
-      isPrimary: boolean
-    }>('guardians'),
-    listDocuments<{ id: string; studentId: string; sacramentId: string }>('studentSacraments'),
-    listDocuments<{
-      id: string
-      sessionId: string
-      studentId: string
-      status: AttendanceStatus
-      observations?: string
-    }>('attendanceRecords'),
-    listDocuments<{
-      id: string
-      activityId: string
-      studentId: string
-      grade: number
-      observations?: string
-    }>('activityGrades'),
-    listDocuments<ChecklistCatalogItem>('checklistCatalog'),
-    listDocuments<DocumentRequirement>('documentRequirements'),
-    listDocuments<StudentChecklistProgress>('studentChecklistProgress'),
-    listDocuments<StudentDocumentProgress>('studentDocumentProgress'),
-  ])
+  const filteredUserGroups = userGroups
+  const groupStudents = students
+  const groupSessions = attendanceSessions
+  const groupActivities = activities
+  const groupStudentIds = groupStudents.map((student) => student.id)
+  const groupSessionIds = groupSessions.map((session) => session.id)
+  const groupActivityIds = groupActivities.map((activity) => activity.id)
 
-  const filteredUserGroups = userGroups.filter((assignment) => assignment.groupId === groupId)
-  const groupStudents = students.filter((student) => student.groupId === groupId)
-  const groupSessions = attendanceSessions.filter((session) => session.groupId === groupId)
-  const groupActivities = activities.filter((activity) => activity.groupId === groupId)
+  const [guardians, studentSacraments, attendanceRecords, activityGrades, checklistCatalog, documentRequirements, checklistProgress, documentProgress] = await Promise.all([
+    groupStudents.length > 0
+      ? getDocumentsByFieldIn<{
+          id: string
+          studentId: string
+          name: string
+          phone?: string
+          whatsapp?: string
+          email?: string
+          isPrimary: boolean
+        }>('guardians', 'studentId', groupStudentIds, { source: 'cache-first' })
+      : Promise.resolve([]),
+    groupStudents.length > 0
+      ? getDocumentsByFieldIn<{ id: string; studentId: string; sacramentId: string }>('studentSacraments', 'studentId', groupStudentIds, { source: 'cache-first' })
+      : Promise.resolve([]),
+    groupSessions.length > 0
+      ? getDocumentsByFieldIn<{
+          id: string
+          sessionId: string
+          studentId: string
+          status: AttendanceStatus
+          observations?: string
+        }>('attendanceRecords', 'sessionId', groupSessionIds, { source: 'cache-first' })
+      : Promise.resolve([]),
+    groupActivities.length > 0
+      ? getDocumentsByFieldIn<{
+          id: string
+          activityId: string
+          studentId: string
+          grade: number
+          observations?: string
+        }>('activityGrades', 'activityId', groupActivityIds, { source: 'cache-first' })
+      : Promise.resolve([]),
+    listDocuments<ChecklistCatalogItem>('checklistCatalog', { source: 'cache-first' }),
+    listDocuments<DocumentRequirement>('documentRequirements', { source: 'cache-first' }),
+    groupStudents.length > 0
+      ? getDocumentsByFieldIn<StudentChecklistProgress>('studentChecklistProgress', 'studentId', groupStudentIds, { source: 'cache-first' })
+      : Promise.resolve([]),
+    groupStudents.length > 0
+      ? getDocumentsByFieldIn<StudentDocumentProgress>('studentDocumentProgress', 'studentId', groupStudentIds, { source: 'cache-first' })
+      : Promise.resolve([]),
+  ])
 
   const catechistMap = new Map(
     users.filter((catechist) => catechist.role === 'CATECHIST').map((catechist) => [catechist.id, catechist.fullName]),
   )
   const studentMap = new Map(groupStudents.map((student) => [student.id, student]))
+  const guardiansByStudentId = new Map<string, typeof guardians>()
+  const sacramentIdsByStudentId = new Map<string, string[]>()
+  const recordsBySessionId = new Map<string, typeof attendanceRecords>()
+  const gradesByActivityId = new Map<string, typeof activityGrades>()
+
+  guardians.forEach((guardian) => {
+    guardiansByStudentId.set(guardian.studentId, [...(guardiansByStudentId.get(guardian.studentId) ?? []), guardian])
+  })
+
+  studentSacraments.forEach((record) => {
+    sacramentIdsByStudentId.set(record.studentId, [...(sacramentIdsByStudentId.get(record.studentId) ?? []), record.sacramentId])
+  })
+
+  attendanceRecords.forEach((record) => {
+    recordsBySessionId.set(record.sessionId, [...(recordsBySessionId.get(record.sessionId) ?? []), record])
+  })
+
+  activityGrades.forEach((grade) => {
+    gradesByActivityId.set(grade.activityId, [...(gradesByActivityId.get(grade.activityId) ?? []), grade])
+  })
+
   const activeStudents = groupStudents.filter((student) => student.active)
   const assignedCatechists = userGroups
-    .filter((assignment) => assignment.groupId === groupId)
     .map((assignment) => catechistMap.get(assignment.userId))
     .filter(Boolean) as string[]
 
   const pendingActivities = groupActivities.filter((activity) => {
-    const gradeCount = activityGrades.filter((grade) => grade.activityId === activity.id).length
+    const gradeCount = (gradesByActivityId.get(activity.id) ?? []).length
     return activity.active && activeStudents.length > 0 && gradeCount < activeStudents.length
   }).length
 
   const attendanceSessionsDetail = groupSessions
     .map((session) => {
-      const sessionRecords = attendanceRecords
-        .filter((record) => record.sessionId === session.id)
+      const sessionRecords = (recordsBySessionId.get(session.id) ?? [])
         .map((record) => ({
           studentId: record.studentId,
           studentName: studentMap.get(record.studentId)
@@ -455,7 +490,7 @@ export async function getGroupDetail(user: User, groupId: string) {
 
   const studentsDetail = groupStudents
     .map((student) => {
-      const studentGuardians = guardians.filter((guardian) => guardian.studentId === student.id)
+      const studentGuardians = guardiansByStudentId.get(student.id) ?? []
       const primaryGuardian =
         studentGuardians.find((guardian) => guardian.isPrimary) ?? studentGuardians[0]
       const studentAttendance = attendanceSessionsDetail
@@ -467,9 +502,7 @@ export async function getGroupDetail(user: User, groupId: string) {
       const positiveAttendance = studentAttendance.filter(
         (entry) => entry.status === 'PRESENTE' || entry.status === 'JUSTIFICADO',
       ).length
-      const studentSacramentIds = studentSacraments
-        .filter((record) => record.studentId === student.id)
-        .map((record) => record.sacramentId)
+      const studentSacramentIds = sacramentIdsByStudentId.get(student.id) ?? []
       const applicableChecklistItems = checklistCatalog.filter((item) =>
         item.sacramentIds.some((sacramentId) => studentSacramentIds.includes(sacramentId)),
       )
@@ -489,7 +522,7 @@ export async function getGroupDetail(user: User, groupId: string) {
         observations: student.observations,
         active: student.active,
         guardianCount: studentGuardians.length,
-        sacramentCount: studentSacraments.filter((record) => record.studentId === student.id).length,
+        sacramentCount: studentSacramentIds.length,
         primaryGuardianName: primaryGuardian?.name,
         primaryGuardianPhone:
           primaryGuardian?.phone ?? primaryGuardian?.whatsapp ?? primaryGuardian?.email,
@@ -529,9 +562,7 @@ export async function getGroupDetail(user: User, groupId: string) {
     studentName: student.fullName,
     entries: groupActivities
       .map((activity) => {
-        const gradeRecord = activityGrades.find(
-          (grade) => grade.activityId === activity.id && grade.studentId === student.id,
-        )
+        const gradeRecord = (gradesByActivityId.get(activity.id) ?? []).find((grade) => grade.studentId === student.id)
 
         return {
           activityId: activity.id,

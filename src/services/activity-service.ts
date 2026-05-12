@@ -1,15 +1,15 @@
 import {
   deleteDocuments,
+  getDocumentsByField,
   getDocumentsByFieldIn,
   getDocumentsByIds,
   getDocumentById,
-  listDocuments,
   paginateDocuments,
   putDocument,
   putDocuments,
 } from '@/database/firestore-repository'
 import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore'
-import { canAccessGroup, getAccessibleGroupIds } from '@/services/access-service'
+import { canAccessGroup, getAccessibleGroupIds, getAccessibleGroups } from '@/services/access-service'
 import { notifyDataChanged } from '@/store/data-store'
 import type { Activity, ActivityType, User } from '@/types/models'
 import { createId, createLocalMeta } from '@/utils/entity'
@@ -45,23 +45,33 @@ export type ActivityGradeInput = {
 }
 
 export async function getActivityOverviews(user: User, groupFilter?: string, yearFilter?: number) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
-  const [activities, groups, students, grades] = await Promise.all([
-    listDocuments<Activity>('activities'),
-    listDocuments<{ id: string; name: string; year: number }>('groups'),
-    listDocuments<{ id: string; groupId: string; active: boolean }>('students'),
-    listDocuments<{ id: string; activityId: string }>('activityGrades'),
+  const groups = await getAccessibleGroups(user, yearFilter)
+  const visibleGroupIds = (groupFilter ? groups.filter((group) => group.id === groupFilter) : groups).map(
+    (group) => group.id,
+  )
+
+  if (visibleGroupIds.length === 0) {
+    return [] as ActivityOverview[]
+  }
+
+  const [activities, students] = await Promise.all([
+    getDocumentsByFieldIn<Activity>('activities', 'groupId', visibleGroupIds, { source: 'cache-first' }),
+    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', visibleGroupIds, {
+      source: 'cache-first',
+    }),
   ])
+
+  const activityIds = activities.map((activity) => activity.id)
+  const grades = activityIds.length > 0
+    ? await getDocumentsByFieldIn<{ id: string; activityId: string }>('activityGrades', 'activityId', activityIds, {
+        source: 'cache-first',
+      })
+    : []
 
   const groupMap = new Map(groups.map((group) => [group.id, group.name]))
 
   return activities
-    .filter((activity) => {
-      const canSeeGroup = user.role === 'ADMIN' || accessibleGroupIds.includes(activity.groupId)
-      const matchesGroup = groupFilter ? activity.groupId === groupFilter : true
-      const matchesYear = yearFilter ? groups.find((group) => group.id === activity.groupId)?.year === yearFilter : true
-      return canSeeGroup && matchesGroup && matchesYear
-    })
+    .filter((activity) => visibleGroupIds.includes(activity.groupId))
     .map((activity) => ({
       ...activity,
       groupName: groupMap.get(activity.groupId) ?? 'Sin grupo',
@@ -192,7 +202,7 @@ export async function setActivityActive(activityId: string, active: boolean) {
 }
 
 export async function getActivityGradeSheet(user: User, activityId: string) {
-  const activity = await getDocumentById<Activity>('activities', activityId)
+  const activity = await getDocumentById<Activity>('activities', activityId, { source: 'cache-first' })
 
   if (!activity) {
     return null
@@ -204,16 +214,19 @@ export async function getActivityGradeSheet(user: User, activityId: string) {
   }
 
   const [students, grades] = await Promise.all([
-    listDocuments<{ id: string; groupId: string; active: boolean; firstName: string; lastName: string }>(
+    getDocumentsByField<{ id: string; groupId: string; active: boolean; firstName: string; lastName: string }>(
       'students',
+      'groupId',
+      activity.groupId,
+      { source: 'cache-first' },
     ),
-    listDocuments<{
+    getDocumentsByField<{
       id: string
       activityId: string
       studentId: string
       grade: number
       observations?: string
-    }>('activityGrades'),
+    }>('activityGrades', 'activityId', activityId, { source: 'cache-first' }),
   ])
 
   return {
@@ -228,7 +241,7 @@ export async function getActivityGradeSheet(user: User, activityId: string) {
 export async function saveActivityGrades(activityId: string, grades: ActivityGradeInput[]) {
   const [activity, allGrades] = await Promise.all([
     getDocumentById<Activity>('activities', activityId),
-    listDocuments<{ id: string; activityId: string }>('activityGrades'),
+    getDocumentsByField<{ id: string; activityId: string }>('activityGrades', 'activityId', activityId),
   ])
 
   if (!activity) {

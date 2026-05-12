@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/app/empty-state'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
+import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { useActiveYear } from '@/hooks/use-active-year'
@@ -123,6 +124,10 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
           <NotebookPen className="size-4" />
           Nueva toma de asistencia
         </PrimaryButton>
+      </div>
+
+      <div className="flex justify-end">
+        <RefreshDataButton cachePrefixes={['nav-', 'access-']} />
       </div>
 
       <SearchInput

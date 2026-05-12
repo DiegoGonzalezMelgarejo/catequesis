@@ -1,27 +1,45 @@
-import { listDocuments } from '@/database/firestore-repository'
-import { getAccessibleGroupIds } from '@/services/access-service'
+import { getDocumentsByFieldIn } from '@/database/firestore-repository'
+import { getAccessibleGroups } from '@/services/access-service'
 import type { AlertItem, User } from '@/types/models'
 
-export async function getAlertItems(user: User, yearFilter?: number) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
-  const [groups, userGroups, students, guardians, studentSacraments, attendanceSessions, attendanceRecords, activities, activityGrades] =
-    await Promise.all([
-      listDocuments<{ id: string; name: string; year: number }>('groups'),
-      listDocuments<{ id: string; groupId: string }>('userGroups'),
-      listDocuments<{ id: string; firstName: string; lastName: string; groupId: string; active: boolean }>('students'),
-      listDocuments<{ id: string; studentId: string }>('guardians'),
-      listDocuments<{ id: string; studentId: string }>('studentSacraments'),
-      listDocuments<{ id: string; groupId: string }>('attendanceSessions'),
-      listDocuments<{ id: string; sessionId: string; studentId: string; status: string }>('attendanceRecords'),
-      listDocuments<{ id: string; groupId: string; title: string; active: boolean }>('activities'),
-      listDocuments<{ id: string; activityId: string }>('activityGrades'),
-    ])
+const ALERTS_CACHE_TTL_MS = 2 * 60 * 1000
 
-  const visibleGroups = groups.filter(
-    (group) => (user.role === 'ADMIN' || accessibleGroupIds.includes(group.id)) && (yearFilter ? group.year === yearFilter : true),
-  )
+export async function getAlertItems(user: User, yearFilter?: number) {
+  const visibleGroups = await getAccessibleGroups(user, yearFilter)
   const visibleGroupIds = visibleGroups.map((group) => group.id)
+
+  if (visibleGroupIds.length === 0) {
+    return [] as AlertItem[]
+  }
+
+  const [userGroups, students, attendanceSessions, activities] = await Promise.all([
+    getDocumentsByFieldIn<{ id: string; groupId: string }>('userGroups', 'groupId', visibleGroupIds, { cacheKey: `alerts-user-groups-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS }),
+    getDocumentsByFieldIn<{ id: string; firstName: string; lastName: string; groupId: string; active: boolean }>('students', 'groupId', visibleGroupIds, { cacheKey: `alerts-students-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS }),
+    getDocumentsByFieldIn<{ id: string; groupId: string }>('attendanceSessions', 'groupId', visibleGroupIds, { cacheKey: `alerts-sessions-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS }),
+    getDocumentsByFieldIn<{ id: string; groupId: string; title: string; active: boolean }>('activities', 'groupId', visibleGroupIds, { cacheKey: `alerts-activities-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS }),
+  ])
+
   const visibleStudents = students.filter((student) => visibleGroupIds.includes(student.groupId) && student.active)
+  const studentIds = visibleStudents.map((student) => student.id)
+  const sessionIds = attendanceSessions.map((session) => session.id)
+  const activityIds = activities.map((activity) => activity.id)
+
+  const [guardians, studentSacraments, attendanceRecords, activityGrades] = await Promise.all([
+    studentIds.length > 0
+      ? getDocumentsByFieldIn<{ id: string; studentId: string }>('guardians', 'studentId', studentIds, { cacheKey: `alerts-guardians-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS })
+      : Promise.resolve([]),
+    studentIds.length > 0
+      ? getDocumentsByFieldIn<{ id: string; studentId: string }>('studentSacraments', 'studentId', studentIds, { cacheKey: `alerts-student-sacraments-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS })
+      : Promise.resolve([]),
+    sessionIds.length > 0
+      ? getDocumentsByFieldIn<{ id: string; sessionId: string; studentId: string; status: string }>('attendanceRecords', 'sessionId', sessionIds, { cacheKey: `alerts-attendance-records-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS })
+      : Promise.resolve([]),
+    activityIds.length > 0
+      ? getDocumentsByFieldIn<{ id: string; activityId: string }>('activityGrades', 'activityId', activityIds, { cacheKey: `alerts-activity-grades-${user.role}-${yearFilter ?? 'all'}`, maxAgeMs: ALERTS_CACHE_TTL_MS })
+      : Promise.resolve([]),
+  ])
+
+  const attendanceSessionMap = new Map(attendanceSessions.map((session) => [session.id, session]))
   const alerts: AlertItem[] = []
 
   if (user.role === 'ADMIN') {
@@ -78,7 +96,7 @@ export async function getAlertItems(user: User, yearFilter?: number) {
         return false
       }
 
-      const session = attendanceSessions.find((entry) => entry.id === record.sessionId)
+      const session = attendanceSessionMap.get(record.sessionId)
       return Boolean(session && visibleGroupIds.includes(session.groupId))
     }).length
 

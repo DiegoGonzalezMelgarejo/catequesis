@@ -1,4 +1,4 @@
-import { getDocumentById, listDocuments, putDocument } from '@/database/firestore-repository'
+import { getDocumentById, getDocumentsByField, putDocument } from '@/database/firestore-repository'
 import { clearSessionScope, setSessionScope } from '@/services/session-service'
 import type { User } from '@/types/models'
 import { hashPassword, verifyPassword } from '@/utils/password'
@@ -7,8 +7,8 @@ const SESSION_KEY = 'catequesis-session-user-id'
 
 export async function loginUser(username: string, password: string) {
   const normalizedUsername = username.trim().toLowerCase()
-  const users = await listDocuments<User>('users')
-  const user = users.find((entry) => entry.username.trim().toLowerCase() === normalizedUsername)
+  const users = await getDocumentsByField<User>('users', 'username', normalizedUsername)
+  const user = users[0]
 
   if (!user || !user.active || !(await verifyPassword(password, user.id, user.password))) {
     return null

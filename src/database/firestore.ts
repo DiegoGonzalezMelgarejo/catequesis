@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app'
 import {
   initializeFirestore,
-  memoryLocalCache,
+  persistentLocalCache,
+  persistentSingleTabManager,
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -16,7 +17,10 @@ const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig)
 
 export const firestore = initializeFirestore(firebaseApp, {
-  localCache: memoryLocalCache(),
+  localCache: persistentLocalCache({
+    cacheSizeBytes: 40 * 1024 * 1024,
+    tabManager: persistentSingleTabManager({}),
+  }),
 })
 
 export const firestoreCollections = {

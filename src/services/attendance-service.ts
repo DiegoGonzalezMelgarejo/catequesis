@@ -1,5 +1,6 @@
 import {
   deleteDocuments,
+  getDocumentsByField,
   getDocumentsByFieldIn,
   listDocuments,
   putDocument,
@@ -33,21 +34,20 @@ export type AttendanceHistoryItem = {
 }
 
 export async function getStudentsByGroup(groupId: string) {
-  const students = await listDocuments<{
+  const students = await getDocumentsByField<{
     id: string
     firstName: string
     lastName: string
     active: boolean
     groupId: string
-  }>('students')
+  }>('students', 'groupId', groupId, { source: 'cache-first' })
 
   return students
-    .filter((student) => student.groupId === groupId)
     .sort((left, right) => left.lastName.localeCompare(right.lastName, 'es'))
 }
 
 export async function getAttendanceSessionDetail(groupId: string, date: string) {
-  const sessions = await listDocuments<{
+  const sessions = await getDocumentsByField<{
     id: string
     groupId: string
     date: string
@@ -57,7 +57,7 @@ export async function getAttendanceSessionDetail(groupId: string, date: string) 
     updatedAt: string
     parishId: string
     syncStatus: 'synced' | 'local' | 'pending'
-  }>('attendanceSessions')
+  }>('attendanceSessions', 'groupId', groupId, { source: 'cache-first' })
   const session = sessions.find((entry) => entry.groupId === groupId && entry.date === date)
 
   if (!session) {
@@ -78,13 +78,12 @@ export async function getAttendanceSessionDetail(groupId: string, date: string) 
 }
 
 export async function getAttendanceHistoryByGroup(groupId: string) {
-  const sessions = (await listDocuments<{
+  const sessions = (await getDocumentsByField<{
     id: string
     groupId: string
     date: string
     notes?: string
-  }>('attendanceSessions'))
-    .filter((session) => session.groupId === groupId)
+  }>('attendanceSessions', 'groupId', groupId, { source: 'cache-first' }))
     .sort((left, right) => right.date.localeCompare(left.date))
 
   if (sessions.length === 0) {

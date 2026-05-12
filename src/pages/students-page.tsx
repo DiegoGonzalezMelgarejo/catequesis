@@ -13,9 +13,10 @@ import { MobilePageActionBar } from '@/components/app/mobile-page-action-bar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
+import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { listDocuments } from '@/database/firestore-repository'
+import { getDocumentsByFieldIn, listDocuments } from '@/database/firestore-repository'
 import { StudentForm, type EditableStudent } from '@/features/students/student-form'
 import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -71,26 +72,37 @@ export function StudentsPage() {
         return null
       }
 
+      const visibleStudentIds = pagedStudents.map((student) => student.id)
+
       const [groups, sacraments, guardians, studentSacraments, alerts] = await Promise.all([
         getAccessibleGroups(user, activeYear ?? undefined),
-        listDocuments<{ id: string; name: string; active: boolean }>('sacraments'),
-        listDocuments<{
-          id: string
-          studentId: string
-          name: string
-          relationship: string
-          phone?: string
-          whatsapp?: string
-          email?: string
-          isPrimary: boolean
-        }>('guardians'),
-        listDocuments<{ id: string; studentId: string; sacramentId: string }>('studentSacraments'),
+        listDocuments<{ id: string; name: string; active: boolean }>('sacraments', { source: 'cache-first' }),
+        visibleStudentIds.length > 0
+          ? getDocumentsByFieldIn<{
+              id: string
+              studentId: string
+              name: string
+              relationship: string
+              phone?: string
+              whatsapp?: string
+              email?: string
+              isPrimary: boolean
+            }>('guardians', 'studentId', visibleStudentIds, { source: 'cache-first' })
+          : Promise.resolve([]),
+        visibleStudentIds.length > 0
+          ? getDocumentsByFieldIn<{ id: string; studentId: string; sacramentId: string }>(
+              'studentSacraments',
+              'studentId',
+              visibleStudentIds,
+              { source: 'cache-first' },
+            )
+          : Promise.resolve([]),
         getAlertItems(user, activeYear ?? undefined),
       ])
 
       return { groups, sacraments, guardians, studentSacraments, alerts }
     },
-    [user?.id, user?.role, activeYear],
+    [user?.id, user?.role, activeYear, pagedStudents.map((student) => student.id).join('|')],
   )
 
   const filteredStudents = useMemo(
@@ -153,6 +165,7 @@ export function StudentsPage() {
 
         {user.role === 'ADMIN' ? (
           <div className="hidden xl:flex items-center gap-2">
+            <RefreshDataButton cachePrefixes={['nav-', 'access-', 'alerts-']} />
             <SecondaryButton type="button" onClick={() => exportStudentFormPdf(activeYear ?? undefined)}>
               <Download className="size-4" />
               Formulario PDF

@@ -13,9 +13,10 @@ import { MobilePageActionBar } from '@/components/app/mobile-page-action-bar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
+import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { listDocuments } from '@/database/firestore-repository'
+import { getDocumentsByField, getDocumentsByFieldIn } from '@/database/firestore-repository'
 import { GroupForm, type EditableGroup } from '@/features/groups/group-form'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useActiveYear } from '@/hooks/use-active-year'
@@ -80,19 +81,25 @@ export function GroupsPage() {
         return null
       }
 
+      const visibleGroupIds = pagedGroups.map((group) => group.id)
+
       const [catechists, userGroups, groups] = await Promise.all([
-        listDocuments<{ id: string; fullName: string; role: string; active: boolean }>('users'),
-        listDocuments<{ id: string; userId: string; groupId: string }>('userGroups'),
+        getDocumentsByField<{ id: string; fullName: string; role: string; active: boolean }>('users', 'role', 'CATECHIST', {
+          source: 'cache-first',
+        }),
+        visibleGroupIds.length > 0
+          ? getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', visibleGroupIds, { source: 'cache-first' })
+          : Promise.resolve([]),
         getAccessibleGroups(user, activeYear ?? undefined),
       ])
 
       return {
-        catechists: catechists.filter((catechist) => catechist.role === 'CATECHIST'),
+        catechists,
         userGroups,
         groups,
       }
     },
-    [user?.id, user?.role, activeYear],
+    [user?.id, user?.role, activeYear, pagedGroups.map((group) => group.id).join('|')],
   )
 
   if (!user || !activeYear || loading || pageLoading || !data) {
@@ -143,6 +150,7 @@ export function GroupsPage() {
             Tomar asistencia
           </Link>
         </PrimaryButton>
+        <RefreshDataButton className="hidden sm:inline-flex" cachePrefixes={['nav-', 'access-']} />
         {user.role === 'ADMIN' ? (
           <SecondaryButton
             className="hidden sm:inline-flex"

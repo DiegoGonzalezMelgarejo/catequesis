@@ -6,6 +6,7 @@ import { Badge } from '@/components/app/badge'
 import { EmptyState } from '@/components/app/empty-state'
 import { PageSkeleton } from '@/components/app/page-skeleton'
 import { PaginationControls } from '@/components/app/pagination-controls'
+import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SearchInput } from '@/components/app/search-input'
 import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -79,6 +80,9 @@ export function AlertsPage() {
     <EmptyState title="Sin alertas" description="No se detectaron riesgos ni pendientes relevantes en este momento." icon={Bell} />
   ) : (
     <div className="space-y-4 sm:space-y-6">
+      <div className="flex justify-end">
+        <RefreshDataButton cachePrefixes={['alerts-', 'nav-', 'access-']} />
+      </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <AppCard>
           <div>
