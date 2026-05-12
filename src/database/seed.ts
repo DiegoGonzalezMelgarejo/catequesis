@@ -16,17 +16,16 @@ import { getCurrentYear } from '@/utils/year'
 
 const SEARCH_INDEX_VERSION = '3'
 let databaseInitializationPromise: Promise<void> | null = null
+let databaseAuthReadyPromise: Promise<void> | null = null
 
 function createTimestamp() {
   return new Date().toISOString()
 }
 
-export async function initializeDatabase() {
+async function ensureBaseSeedData() {
   const seedSetting = await getSetting('seed-version')
-  const searchIndexSetting = await getSetting('search-index-version')
 
   const timestamp = createTimestamp()
-  const currentYear = getCurrentYear()
 
   await ensureDefaultParishExists()
 
@@ -103,53 +102,78 @@ export async function initializeDatabase() {
   await ensureParishBaseCatalog(DEFAULT_PARISH_ID)
 
   await setSetting(setting)
+}
 
-  if (searchIndexSetting?.value !== SEARCH_INDEX_VERSION) {
-    const [users, groups, students] = await Promise.all([
-      listDocuments<User>('users'),
-      listDocuments<Group>('groups'),
-      listDocuments<Student>('students'),
-    ])
+async function ensureSearchIndexes() {
+  const searchIndexSetting = await getSetting('search-index-version')
 
-    await Promise.all([
-      putDocuments(
-        'users',
-        users.map((user) => ({
-          ...user,
-          searchTokens: buildSearchTokens(user.fullName, user.username, user.email),
-        })),
-      ),
-      putDocuments(
-        'groups',
-        groups.map((group) => ({
-          ...group,
-          year: group.year ?? currentYear,
-          searchTokens: buildSearchTokens(group.name, (group.year ?? currentYear).toString(), group.description, group.schedule),
-        })),
-      ),
-      putDocuments(
-        'students',
-        students.map((student) => ({
-          ...student,
-          year: student.year ?? groups.find((group) => group.id === student.groupId)?.year ?? currentYear,
-          searchTokens: buildSearchTokens(
-            `${student.firstName} ${student.lastName}`,
-            student.firstName,
-            student.lastName,
-            (student.year ?? groups.find((group) => group.id === student.groupId)?.year ?? currentYear).toString(),
-            student.observations,
-          ),
-        })),
-      ),
-    ])
-
-    await setSetting({
-      key: 'search-index-version',
-      value: SEARCH_INDEX_VERSION,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
+  if (searchIndexSetting?.value === SEARCH_INDEX_VERSION) {
+    return
   }
+
+  const timestamp = createTimestamp()
+  const currentYear = getCurrentYear()
+
+  const [users, groups, students] = await Promise.all([
+    listDocuments<User>('users'),
+    listDocuments<Group>('groups'),
+    listDocuments<Student>('students'),
+  ])
+
+  await Promise.all([
+    putDocuments(
+      'users',
+      users.map((user) => ({
+        ...user,
+        searchTokens: buildSearchTokens(user.fullName, user.username, user.email),
+      })),
+    ),
+    putDocuments(
+      'groups',
+      groups.map((group) => ({
+        ...group,
+        year: group.year ?? currentYear,
+        searchTokens: buildSearchTokens(group.name, (group.year ?? currentYear).toString(), group.description, group.schedule),
+      })),
+    ),
+    putDocuments(
+      'students',
+      students.map((student) => ({
+        ...student,
+        year: student.year ?? groups.find((group) => group.id === student.groupId)?.year ?? currentYear,
+        searchTokens: buildSearchTokens(
+          `${student.firstName} ${student.lastName}`,
+          student.firstName,
+          student.lastName,
+          (student.year ?? groups.find((group) => group.id === student.groupId)?.year ?? currentYear).toString(),
+          student.observations,
+        ),
+      })),
+    ),
+  ])
+
+  await setSetting({
+    key: 'search-index-version',
+    value: SEARCH_INDEX_VERSION,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+}
+
+export async function initializeDatabase() {
+  await ensureDatabaseAuthReady()
+
+  await ensureSearchIndexes()
+
+  databaseAuthReadyPromise = Promise.resolve()
+}
+
+export function ensureDatabaseAuthReady() {
+  if (!databaseAuthReadyPromise) {
+    databaseAuthReadyPromise = ensureBaseSeedData()
+  }
+
+  return databaseAuthReadyPromise
 }
 
 export function ensureDatabaseInitialized() {

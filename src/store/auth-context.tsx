@@ -1,6 +1,6 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
 
-import { ensureDatabaseInitialized } from '@/database/seed'
+import { ensureDatabaseAuthReady, ensureDatabaseInitialized } from '@/database/seed'
 import { clearSession, loginUser, restoreSession, syncSessionUser, updateUserPassword } from '@/services/auth-service'
 import type { User } from '@/types/models'
 
@@ -49,7 +49,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       loading,
       login: async (username, password) => {
-        await ensureDatabaseInitialized()
+        await ensureDatabaseAuthReady()
+        void ensureDatabaseInitialized()
         const authenticatedUser = await loginUser(username, password)
         setUser(authenticatedUser)
         return Boolean(authenticatedUser)
