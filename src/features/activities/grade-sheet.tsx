@@ -99,6 +99,7 @@ export function GradeSheet({ open, onOpenChange, activityId, user }: GradeSheetP
     <Modal
       open={open}
       onOpenChange={onOpenChange}
+      variant="full-screen"
       title="Registrar notas"
       description={sheet ? `${sheet.activity.title} • Nota maxima ${sheet.activity.maxGrade}` : 'Cargando actividad'}
       footer={
@@ -118,7 +119,7 @@ export function GradeSheet({ open, onOpenChange, activityId, user }: GradeSheetP
       ) : sheet.students.length === 0 ? (
         <EmptyState title="Sin alumnos activos" description="No hay alumnos activos en este grupo." icon={LoaderCircle} />
       ) : (
-        <div className="space-y-4">
+        <div className="mx-auto max-w-5xl space-y-4 lg:space-y-5">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar alumno" />
           <AppCard
             title="Carga rápida de notas"

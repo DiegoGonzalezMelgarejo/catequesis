@@ -1,15 +1,21 @@
 import {
   collection,
   deleteDoc,
+  type DocumentReference,
   documentId,
   type DocumentData,
   doc,
-  getDoc,
-  getDocs,
+  type DocumentSnapshot,
+  getDocFromCache,
+  getDocFromServer,
+  getDocsFromCache,
+  getDocsFromServer,
   limit,
   orderBy,
   type OrderByDirection,
   query,
+  type Query,
+  type QuerySnapshot,
   setDoc,
   startAfter,
   type QueryDocumentSnapshot,
@@ -19,6 +25,7 @@ import {
 } from 'firebase/firestore'
 
 import { firestore, firestoreCollections, type FirestoreCollectionKey } from '@/database/firestore'
+import { getSessionScope } from '@/services/session-service'
 import type { Setting } from '@/types/models'
 
 function sanitizeForFirestore<T>(value: T): T {
@@ -31,6 +38,46 @@ function getCollectionRef(collectionKey: FirestoreCollectionKey) {
 
 function getDocRef(collectionKey: FirestoreCollectionKey, id: string) {
   return doc(firestore, firestoreCollections[collectionKey], id)
+}
+
+function isParishScopedCollection(collectionKey: FirestoreCollectionKey) {
+  return !['parishes', 'settings'].includes(collectionKey)
+}
+
+function canBypassParishScope() {
+  const scope = getSessionScope()
+
+  if (!scope) {
+    return true
+  }
+
+  return scope.role === 'SUPER_ADMIN'
+}
+
+function isDocumentVisible(collectionKey: FirestoreCollectionKey, document: DocumentData) {
+  if (!isParishScopedCollection(collectionKey) || canBypassParishScope()) {
+    return true
+  }
+
+  const scope = getSessionScope()
+
+  if (!scope) {
+    return true
+  }
+
+  return document.parishId === scope.parishId
+}
+
+function sanitizeScopedDocuments<T extends DocumentData>(collectionKey: FirestoreCollectionKey, documents: T[]) {
+  return documents.filter((document) => isDocumentVisible(collectionKey, document))
+}
+
+function castDocument<T extends DocumentData>(document: DocumentData) {
+  return document as unknown as T
+}
+
+function castDocuments<T extends DocumentData>(documents: DocumentData[]) {
+  return documents as unknown as T[]
 }
 
 type QueryFilter = {
@@ -51,6 +98,30 @@ export type PaginatedDocumentsResult<T> = {
   items: T[]
   nextCursor: QueryDocumentSnapshot<DocumentData> | null
   hasMore: boolean
+}
+
+async function getQuerySnapshotServerFirst<T extends DocumentData>(
+  queryRef: Query<T>,
+): Promise<QuerySnapshot<T>> {
+  try {
+    return await getDocsFromServer(queryRef)
+  } catch {
+    // If the server is unavailable, fall back to local cache.
+  }
+
+  return getDocsFromCache(queryRef)
+}
+
+async function getDocumentSnapshotServerFirst<T extends DocumentData>(
+  docRef: DocumentReference<T>,
+): Promise<DocumentSnapshot<T>> {
+  try {
+    return await getDocFromServer(docRef)
+  } catch {
+    // If the server is unavailable, fall back to local cache.
+  }
+
+  return getDocFromCache(docRef)
 }
 
 function buildFirestoreQuery(
@@ -87,40 +158,48 @@ function buildFirestoreQuery(
   return query(getCollectionRef(collectionKey), ...constraints)
 }
 
-export async function listDocuments<T>(collectionKey: FirestoreCollectionKey) {
-  const snapshot = await getDocs(getCollectionRef(collectionKey))
-  return snapshot.docs.map((entry) => ({
+export async function listDocuments<T extends DocumentData>(collectionKey: FirestoreCollectionKey) {
+  const snapshot = await getQuerySnapshotServerFirst(query(getCollectionRef(collectionKey)))
+  return sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({
     id: entry.id,
     ...entry.data(),
-  })) as T[]
+  }))))
 }
 
-export async function getDocumentById<T>(collectionKey: FirestoreCollectionKey, id: string) {
-  const snapshot = await getDoc(getDocRef(collectionKey, id))
+export async function getDocumentById<T extends DocumentData>(collectionKey: FirestoreCollectionKey, id: string) {
+  const snapshot = await getDocumentSnapshotServerFirst(getDocRef(collectionKey, id))
 
   if (!snapshot.exists()) {
     return undefined
   }
 
-  return {
+  const document = castDocument<T>({
     id: snapshot.id,
     ...snapshot.data(),
-  } as T
+  })
+
+  if (!isDocumentVisible(collectionKey, document as DocumentData)) {
+    return undefined
+  }
+
+  return document
 }
 
-export async function getDocumentsByField<T>(
+export async function getDocumentsByField<T extends DocumentData>(
   collectionKey: FirestoreCollectionKey,
   field: string,
   value: string | boolean | number,
 ) {
-  const snapshot = await getDocs(query(getCollectionRef(collectionKey), where(field, '==', value)))
-  return snapshot.docs.map((entry) => ({
+  const snapshot = await getQuerySnapshotServerFirst(
+    query(getCollectionRef(collectionKey), where(field, '==', value)),
+  )
+  return sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({
     id: entry.id,
     ...entry.data(),
-  })) as T[]
+  }))))
 }
 
-export async function getDocumentsByIds<T>(collectionKey: FirestoreCollectionKey, ids: string[]) {
+export async function getDocumentsByIds<T extends DocumentData>(collectionKey: FirestoreCollectionKey, ids: string[]) {
   if (ids.length === 0) {
     return [] as T[]
   }
@@ -129,19 +208,19 @@ export async function getDocumentsByIds<T>(collectionKey: FirestoreCollectionKey
 
   for (let index = 0; index < ids.length; index += 10) {
     const chunk = ids.slice(index, index + 10)
-    const snapshot = await getDocs(
+    const snapshot = await getQuerySnapshotServerFirst(
       query(getCollectionRef(collectionKey), where(documentId(), 'in', chunk)),
     )
 
     results.push(
-      ...(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })) as T[]),
+      ...sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))),
     )
   }
 
   return results
 }
 
-export async function getDocumentsByFieldIn<T>(
+export async function getDocumentsByFieldIn<T extends DocumentData>(
   collectionKey: FirestoreCollectionKey,
   field: string,
   values: string[],
@@ -155,22 +234,24 @@ export async function getDocumentsByFieldIn<T>(
   for (let index = 0; index < values.length; index += 10) {
     const chunk = values.slice(index, index + 10)
     const fieldRef = field === '__name__' ? documentId() : field
-    const snapshot = await getDocs(query(getCollectionRef(collectionKey), where(fieldRef, 'in', chunk)))
+    const snapshot = await getQuerySnapshotServerFirst(
+      query(getCollectionRef(collectionKey), where(fieldRef, 'in', chunk)),
+    )
 
     results.push(
-      ...(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })) as T[]),
+      ...sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))),
     )
   }
 
   return results
 }
 
-export async function paginateDocuments<T>(
+export async function paginateDocuments<T extends DocumentData>(
   collectionKey: FirestoreCollectionKey,
   options: PaginatedQueryOptions,
 ) {
   const limitCount = options.limitCount ?? 20
-  const snapshot = await getDocs(
+  const snapshot = await getQuerySnapshotServerFirst(
     buildFirestoreQuery(collectionKey, {
       ...options,
       limitCount,
@@ -178,7 +259,7 @@ export async function paginateDocuments<T>(
   )
 
   return {
-    items: snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })) as T[],
+    items: sanitizeScopedDocuments(collectionKey, castDocuments<T>(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })))),
     nextCursor: snapshot.docs.at(-1) ?? null,
     hasMore: snapshot.docs.length === limitCount,
   } satisfies PaginatedDocumentsResult<T>
@@ -235,7 +316,7 @@ export async function deleteDocumentById(collectionKey: FirestoreCollectionKey, 
 }
 
 export async function getSetting(key: string) {
-  const snapshot = await getDoc(getDocRef('settings', key))
+  const snapshot = await getDocumentSnapshotServerFirst(getDocRef('settings', key))
 
   if (!snapshot.exists()) {
     return undefined

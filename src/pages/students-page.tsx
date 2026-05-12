@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BookUser, Edit3, Eye, ListFilter, MoreHorizontal, UserRound, UserRoundX } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { AlertTriangle, BookUser, Download, Edit3, Eye, ListFilter, MoreHorizontal, UserRound, UserRoundX } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -15,20 +15,23 @@ import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { ViewModeToggle, type ViewMode } from '@/components/app/view-mode-toggle'
 import { listDocuments } from '@/database/firestore-repository'
 import { StudentForm, type EditableStudent } from '@/features/students/student-form'
+import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { usePaginatedResource } from '@/hooks/use-paginated-resource'
 import { useAuth } from '@/hooks/use-auth'
 import { getAlertItems } from '@/services/alert-service'
 import { getAccessibleGroups } from '@/services/access-service'
 import { getStudentsPage, setStudentActive } from '@/services/student-service'
+import { exportStudentFormPdf } from '@/utils/student-form-pdf'
+import { formatYearLabel } from '@/utils/year'
 
 export function StudentsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
+  const { activeYear } = useActiveYear()
   const [search, setSearch] = useState('')
   const [groupFilter, setGroupFilter] = useState('')
   const [openForm, setOpenForm] = useState(false)
@@ -36,17 +39,6 @@ export function StudentsPage() {
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
   const [actionStudent, setActionStudent] = useState<Awaited<ReturnType<typeof getStudentsPage>>['items'][number] | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window === 'undefined') {
-      return 'list'
-    }
-
-    return (window.localStorage.getItem('students-view-mode') as ViewMode | null) ?? 'list'
-  })
-
-  useEffect(() => {
-    window.localStorage.setItem('students-view-mode', viewMode)
-  }, [viewMode])
 
   const fetchPage = useCallback(
     (cursor: Parameters<typeof getStudentsPage>[1], pageSize: number) => {
@@ -54,9 +46,9 @@ export function StudentsPage() {
         return Promise.resolve({ items: [], nextCursor: null, hasMore: false })
       }
 
-      return getStudentsPage(user, cursor, pageSize, groupFilter || undefined, search)
+      return getStudentsPage(user, cursor, pageSize, groupFilter || undefined, activeYear ?? undefined, search)
     },
-    [groupFilter, search, user],
+    [groupFilter, search, user, activeYear],
   )
   const {
     items: pagedStudents,
@@ -80,7 +72,7 @@ export function StudentsPage() {
       }
 
       const [groups, sacraments, guardians, studentSacraments, alerts] = await Promise.all([
-        getAccessibleGroups(user),
+        getAccessibleGroups(user, activeYear ?? undefined),
         listDocuments<{ id: string; name: string; active: boolean }>('sacraments'),
         listDocuments<{
           id: string
@@ -93,12 +85,12 @@ export function StudentsPage() {
           isPrimary: boolean
         }>('guardians'),
         listDocuments<{ id: string; studentId: string; sacramentId: string }>('studentSacraments'),
-        getAlertItems(user),
+        getAlertItems(user, activeYear ?? undefined),
       ])
 
       return { groups, sacraments, guardians, studentSacraments, alerts }
     },
-    [user?.id, user?.role],
+    [user?.id, user?.role, activeYear],
   )
 
   const filteredStudents = useMemo(
@@ -109,7 +101,7 @@ export function StudentsPage() {
     [pagedStudents, search],
   )
 
-  if (!user || loading || pageLoading || !data) {
+  if (!user || !activeYear || loading || pageLoading || !data) {
     return <PageSkeleton variant="list" />
   }
 
@@ -121,6 +113,9 @@ export function StudentsPage() {
   )
 
   const studentAlerts = data.alerts.filter((alert) => alert.studentId || alert.groupId)
+  const activeStudents = filteredStudents.filter((student) => student.active).length
+  const studentsWithPendingDocuments = filteredStudents.filter((student) => student.documentProgressPercent < 100).length
+  const studentsWithPendingChecklist = filteredStudents.filter((student) => student.checklistProgressPercent < 100).length
 
   async function handleToggleStudent() {
     if (!confirmState) {
@@ -139,19 +134,17 @@ export function StudentsPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem] lg:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-center xl:flex-1">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_14rem] sm:items-center xl:flex-1">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar alumno" />
           <select className="hidden h-11 rounded-[0.875rem] border border-input bg-white px-4 text-sm sm:block" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
             <option value="">Todos los grupos</option>
             {data.groups.map((group) => (
               <option key={group.id} value={group.id}>
-                {group.name}
+                {group.name} · {group.year}
               </option>
               ))}
           </select>
-          <div className="hidden sm:col-span-2 lg:col-span-1 sm:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
+          <div className="hidden h-11 items-center rounded-[0.875rem] border border-input bg-white px-4 text-sm text-muted-foreground sm:flex">{formatYearLabel(activeYear)}</div>
           <SecondaryButton className="sm:hidden" type="button" onClick={() => setShowFilters(true)}>
             <ListFilter className="size-4" />
             Filtros
@@ -159,170 +152,94 @@ export function StudentsPage() {
         </div>
 
         {user.role === 'ADMIN' ? (
-          <PrimaryButton className="hidden xl:inline-flex" type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
-            Registrar alumno
-          </PrimaryButton>
+          <div className="hidden xl:flex items-center gap-2">
+            <SecondaryButton type="button" onClick={() => exportStudentFormPdf(activeYear ?? undefined)}>
+              <Download className="size-4" />
+              Formulario PDF
+            </SecondaryButton>
+            <PrimaryButton className="hidden xl:inline-flex" type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
+              Registrar alumno
+            </PrimaryButton>
+          </div>
         ) : null}
       </div>
 
-      {studentAlerts.length > 0 ? (
-        <AppCard title="Alertas relacionadas" description="Casos que conviene revisar antes de editar el listado.">
-          <div className="flex items-center justify-between gap-3 rounded-[0.95rem] bg-warning/10 px-4 py-3">
-            <div className="flex items-start gap-3">
-              <div className="rounded-[0.8rem] bg-warning/20 p-2 text-foreground">
-                <AlertTriangle className="size-4" />
-              </div>
-              <div>
-                <p className="font-medium">{studentAlerts.length} alertas en alumnos o grupos</p>
-                <p className="text-sm text-muted-foreground">Abre el centro de alertas para ver prioridad y seguimiento.</p>
-              </div>
-            </div>
-            <SecondaryButton type="button" onClick={() => navigate('/app/alerts')}>
-              Ver alertas
-            </SecondaryButton>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Activos</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{activeStudents}</p>
           </div>
         </AppCard>
-      ) : null}
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Pendientes de documentos</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{studentsWithPendingDocuments}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Pendientes de checklist</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{studentsWithPendingChecklist}</p>
+          </div>
+        </AppCard>
+      </div>
 
       {filteredStudents.length === 0 ? (
-        <EmptyState title="Sin alumnos" description="No hay alumnos para el filtro actual." icon={BookUser} />
+        <EmptyState title="Sin alumnos" description="Ajusta la busqueda o el grupo para encontrar alumnos, o registra uno nuevo si hace falta." icon={BookUser} />
       ) : (
         <div className="space-y-4">
-          {viewMode === 'cards' ? (
-            <div className="space-y-3">
+          <AppCard title="Listado de alumnos" description="Encuentra rapido la ficha, el acudiente principal y el avance del seguimiento.">
+            <div className="divide-y divide-border/70">
               {filteredStudents.map((student) => (
-                <AppCard key={student.id} interactive>
-                  <div className="space-y-3">
-                    <Link
-                      to={`/app/students/${student.id}`}
-                      state={detailState}
-                      className="flex items-center gap-3 rounded-[0.95rem] bg-secondary/35 p-3 transition hover:bg-secondary/55"
-                    >
-                      <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-base font-semibold text-foreground sm:text-lg">{student.fullName}</p>
-                            <p className="text-xs text-muted-foreground sm:text-sm">{student.groupName} • {student.age} años</p>
-                          </div>
-                          <Badge variant={student.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
-                            {student.active ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                          <Badge variant={student.active ? 'success' : 'outline'} className="sm:hidden">
-                            {student.active ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                          <span>{student.groupName}</span>
-                          <span>{student.age} años</span>
-                        </div>
+                <div key={student.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <EntityAvatar icon={UserRound} label={student.fullName} className="size-12" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" className="truncate text-left font-semibold hover:text-primary" onClick={() => navigate(`/app/students/${student.id}`, { state: detailState })}>
+                          {student.fullName}
+                        </button>
+                        <Badge variant={student.active ? 'success' : 'outline'} className="shrink-0">{student.active ? 'Activo' : 'Inactivo'}</Badge>
                       </div>
-                    </Link>
-
-                    <div className="rounded-[0.95rem] bg-secondary/45 px-3 py-2 text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">Acudiente principal:</span>{' '}
-                      {primaryGuardianByStudent.get(student.id)?.name ?? 'Sin registrar'}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-muted-foreground">
-                        {student.sacramentCount} sacramentos • {student.guardianCount} acudientes
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <SecondaryButton asChild>
-                          <Link to={`/app/students/${student.id}`} state={detailState}>
-                            Abrir
-                          </Link>
-                        </SecondaryButton>
-                        <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
-                          <MoreHorizontal className="size-4" />
-                        </SecondaryButton>
+                      <p className="text-sm text-muted-foreground">{student.groupName} • {formatYearLabel(student.year)}{student.age != null ? ` • ${student.age} años` : ''}</p>
+                      <p className="text-xs text-muted-foreground">Acudiente principal: {primaryGuardianByStudent.get(student.id)?.name ?? 'Sin registrar'}</p>
+                      <div className="grid gap-2 sm:max-w-md sm:grid-cols-2">
+                        <div className="rounded-[0.95rem] bg-secondary/35 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-muted-foreground">Checklist</span>
+                            <span className="text-muted-foreground">{student.checklistProgressPercent}%</span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${student.checklistProgressPercent}%` }} />
+                          </div>
+                        </div>
+                        <div className="rounded-[0.95rem] bg-secondary/35 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-muted-foreground">Documentos</span>
+                            <span className="text-muted-foreground">{student.documentProgressPercent}%</span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${student.documentProgressPercent}%` }} />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </AppCard>
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <SecondaryButton asChild>
+                      <Link to={`/app/students/${student.id}`} state={detailState}>
+                        Abrir ficha
+                      </Link>
+                    </SecondaryButton>
+                    <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
+                      <MoreHorizontal className="size-4" />
+                    </SecondaryButton>
+                  </div>
+                </div>
               ))}
             </div>
-          ) : null}
-
-          {viewMode === 'list' ? (
-            <AppCard title="Listado de alumnos" description="Vista simple para encontrar un alumno y abrir su ficha.">
-              <div className="divide-y divide-border/70">
-                {filteredStudents.map((student) => (
-                  <div key={student.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <EntityAvatar icon={UserRound} label={student.fullName} className="size-12" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-2">
-                          <p className="truncate font-semibold">{student.fullName}</p>
-                          <Badge variant={student.active ? 'success' : 'outline'} className="shrink-0">{student.active ? 'Activo' : 'Inactivo'}</Badge>
-                        </div>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {student.groupName} • {student.age} años
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          Acudiente: {primaryGuardianByStudent.get(student.id)?.name ?? 'Sin registrar'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SecondaryButton asChild>
-                        <Link to={`/app/students/${student.id}`} state={detailState}>
-                          Abrir
-                        </Link>
-                      </SecondaryButton>
-                      <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
-                        <MoreHorizontal className="size-4" />
-                      </SecondaryButton>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </AppCard>
-          ) : null}
-
-          {viewMode === 'table' ? (
-            <AppCard>
-              <div className="no-scrollbar overflow-x-auto">
-                <table className="min-w-[48rem] w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-3 py-3 font-medium">Alumno</th>
-                      <th className="px-3 py-3 font-medium">Grupo</th>
-                      <th className="px-3 py-3 font-medium">Edad</th>
-                      <th className="px-3 py-3 font-medium">Acudientes</th>
-                      <th className="px-3 py-3 font-medium">Sacramentos</th>
-                      <th className="px-3 py-3 font-medium">Estado</th>
-                      <th className="px-3 py-3 font-medium text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStudents.map((student) => (
-                      <tr key={student.id} className="border-b border-border/40">
-                        <td className="px-3 py-3">
-                          <button type="button" className="font-medium text-left hover:text-primary" onClick={() => navigate(`/app/students/${student.id}`, { state: detailState })}>
-                            {student.fullName}
-                          </button>
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">{student.groupName}</td>
-                        <td className="px-3 py-3">{student.age}</td>
-                        <td className="px-3 py-3">{student.guardianCount}</td>
-                        <td className="px-3 py-3">{student.sacramentCount}</td>
-                        <td className="px-3 py-3">
-                          <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <SecondaryButton type="button" size="icon" onClick={() => setActionStudent(student)}>
-                            <MoreHorizontal className="size-4" />
-                          </SecondaryButton>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </AppCard>
-          ) : null}
+          </AppCard>
 
           <PaginationControls
             page={page}
@@ -333,14 +250,39 @@ export function StudentsPage() {
             onNext={goNext}
             onPrevious={goPrevious}
           />
+
+          {studentAlerts.length > 0 ? (
+            <AppCard title="Alertas relacionadas" description="Casos que conviene revisar después de revisar el listado.">
+              <div className="flex items-center justify-between gap-3 rounded-[0.95rem] bg-warning/10 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-[0.8rem] bg-warning/20 p-2 text-foreground">
+                    <AlertTriangle className="size-4" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{studentAlerts.length} alertas en alumnos o grupos</p>
+                    <p className="text-sm text-muted-foreground">Abre el centro de alertas para ver prioridad y seguimiento.</p>
+                  </div>
+                </div>
+                <SecondaryButton type="button" onClick={() => navigate('/app/alerts')}>
+                  Ver alertas
+                </SecondaryButton>
+              </div>
+            </AppCard>
+          ) : null}
         </div>
       )}
 
       {user.role === 'ADMIN' ? (
         <MobilePageActionBar>
-          <PrimaryButton className="w-full" type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
-            Registrar alumno
-          </PrimaryButton>
+          <div className="flex w-full gap-2">
+            <SecondaryButton className="flex-1" type="button" onClick={() => exportStudentFormPdf(activeYear ?? undefined)}>
+              <Download className="size-4" />
+              Formulario PDF
+            </SecondaryButton>
+            <PrimaryButton className="flex-1" type="button" onClick={() => { setSelectedStudent(null); setOpenForm(true) }}>
+              Registrar alumno
+            </PrimaryButton>
+          </div>
         </MobilePageActionBar>
       ) : null}
 
@@ -349,7 +291,7 @@ export function StudentsPage() {
           open={openForm}
           onOpenChange={setOpenForm}
           student={selectedStudent}
-          groups={data.groups.filter((group) => group.active).map((group) => ({ label: group.name, value: group.id }))}
+          groups={data.groups.filter((group) => group.active).map((group) => ({ label: `${group.name} · ${group.year}`, value: group.id, description: formatYearLabel(group.year) }))}
           sacraments={data.sacraments.filter((sacrament) => sacrament.active).map((sacrament) => ({ label: sacrament.name, value: sacrament.id }))}
         />
       ) : null}
@@ -384,14 +326,16 @@ export function StudentsPage() {
               <option value="">Todos los grupos</option>
               {data.groups.map((group) => (
                 <option key={group.id} value={group.id}>
-                  {group.name}
+                  {group.name} · {group.year}
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Vista</label>
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <label className="text-sm font-medium text-foreground">Año activo</label>
+            <div className="rounded-[0.95rem] bg-secondary/35 px-3 py-3 text-sm text-muted-foreground">
+              {formatYearLabel(activeYear)}
+            </div>
           </div>
         </div>
       </ActionSheet>

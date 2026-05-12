@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Edit3, Layers3, ListFilter, MoreHorizontal, UserRoundX, Users } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -15,35 +15,39 @@ import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { ViewModeToggle, type ViewMode } from '@/components/app/view-mode-toggle'
 import { listDocuments } from '@/database/firestore-repository'
 import { GroupForm, type EditableGroup } from '@/features/groups/group-form'
 import { useAsyncData } from '@/hooks/use-async-data'
+import { useActiveYear } from '@/hooks/use-active-year'
 import { usePaginatedResource } from '@/hooks/use-paginated-resource'
 import { useAuth } from '@/hooks/use-auth'
+import { getAccessibleGroups } from '@/services/access-service'
 import { getGroupsPage, setGroupActive } from '@/services/group-service'
+import { formatYearLabel } from '@/utils/year'
+
+function getAttendanceAction(group: Awaited<ReturnType<typeof getGroupsPage>>['items'][number]) {
+  const today = new Date().toISOString().slice(0, 10)
+  const hasAttendanceToday = group.lastAttendanceDate === today
+
+  return {
+    label: hasAttendanceToday ? 'Editar asistencia de hoy' : 'Tomar asistencia hoy',
+    to: hasAttendanceToday
+      ? `/app/attendance/session?groupId=${group.id}&date=${today}&mode=edit`
+      : `/app/attendance/session?groupId=${group.id}&mode=new`,
+  }
+}
 
 export function GroupsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
+  const { activeYear } = useActiveYear()
   const [search, setSearch] = useState('')
   const [openForm, setOpenForm] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<EditableGroup | null>(null)
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
   const [actionGroup, setActionGroup] = useState<Awaited<ReturnType<typeof getGroupsPage>>['items'][number] | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window === 'undefined') {
-      return 'list'
-    }
-
-    return (window.localStorage.getItem('groups-view-mode') as ViewMode | null) ?? 'list'
-  })
-
-  useEffect(() => {
-    window.localStorage.setItem('groups-view-mode', viewMode)
-  }, [viewMode])
 
   const fetchPage = useCallback(
     (cursor: Parameters<typeof getGroupsPage>[1], pageSize: number) => {
@@ -51,9 +55,9 @@ export function GroupsPage() {
         return Promise.resolve({ items: [], nextCursor: null, hasMore: false })
       }
 
-      return getGroupsPage(user, cursor, pageSize, search)
+      return getGroupsPage(user, cursor, pageSize, activeYear ?? undefined, search)
     },
-    [search, user],
+    [search, user, activeYear],
   )
   const {
     items: pagedGroups,
@@ -76,20 +80,22 @@ export function GroupsPage() {
         return null
       }
 
-      const [catechists, userGroups] = await Promise.all([
+      const [catechists, userGroups, groups] = await Promise.all([
         listDocuments<{ id: string; fullName: string; role: string; active: boolean }>('users'),
         listDocuments<{ id: string; userId: string; groupId: string }>('userGroups'),
+        getAccessibleGroups(user, activeYear ?? undefined),
       ])
 
       return {
         catechists: catechists.filter((catechist) => catechist.role === 'CATECHIST'),
         userGroups,
+        groups,
       }
     },
-    [user?.id, user?.role],
+    [user?.id, user?.role, activeYear],
   )
 
-  if (!user || loading || pageLoading || !data) {
+  if (!user || !activeYear || loading || pageLoading || !data) {
     return <PageSkeleton variant="list" />
   }
 
@@ -103,6 +109,9 @@ export function GroupsPage() {
     label: catechist.fullName,
     value: catechist.id,
   }))
+  const groupsWithoutCatechist = filteredGroups.filter((group) => group.catechists.length === 0).length
+  const activeGroups = filteredGroups.filter((group) => group.active).length
+  const groupsWithPendingActivities = filteredGroups.filter((group) => group.pendingActivities > 0).length
 
   async function handleToggleGroup() {
     if (!confirmState) {
@@ -123,16 +132,19 @@ export function GroupsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-3 sm:flex-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar grupo" />
-          <div className="hidden sm:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
+          <div className="hidden h-11 items-center rounded-[0.875rem] border border-input bg-white px-4 text-sm text-muted-foreground sm:flex">{formatYearLabel(activeYear)}</div>
           <SecondaryButton className="sm:hidden" type="button" onClick={() => setShowFilters(true)}>
             <ListFilter className="size-4" />
-            Vista
+            Ayuda
           </SecondaryButton>
         </div>
+        <PrimaryButton asChild>
+          <Link to="/app/attendance">
+            Tomar asistencia
+          </Link>
+        </PrimaryButton>
         {user.role === 'ADMIN' ? (
-          <PrimaryButton
+          <SecondaryButton
             className="hidden sm:inline-flex"
             type="button"
             onClick={() => {
@@ -142,93 +154,68 @@ export function GroupsPage() {
           >
             <Layers3 className="size-4" />
             Nuevo grupo
-          </PrimaryButton>
+          </SecondaryButton>
         ) : null}
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Grupos activos</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{activeGroups}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Sin catequista</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{groupsWithoutCatechist}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Con actividades pendientes</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{groupsWithPendingActivities}</p>
+          </div>
+        </AppCard>
+      </div>
+
       {filteredGroups.length === 0 ? (
-        <EmptyState title="Sin grupos" description="No se encontraron grupos para mostrar." icon={Layers3} />
+        <EmptyState title="Sin grupos" description="Ajusta la busqueda o crea un grupo nuevo para empezar a organizar el trabajo." icon={Layers3} />
       ) : (
         <>
-          {viewMode === 'cards' ? (
-            <div className="space-y-3">
-              {filteredGroups.map((group) => (
-                <AppCard key={group.id} interactive>
-                  <div className="space-y-3">
-                    <Link
-                      to={`/app/groups/${group.id}`}
-                      state={detailState}
-                      className="flex items-center gap-3 rounded-[0.95rem] bg-secondary/35 p-3 transition hover:bg-secondary/55"
-                    >
-                      <EntityAvatar icon={Users} label={group.name} tone="warning" className="size-14 sm:size-16" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-base font-semibold text-foreground sm:text-lg">{group.name}</p>
-                            <p className="text-xs text-muted-foreground sm:text-sm">{group.schedule || 'Sin horario definido'}</p>
-                          </div>
-                          <Badge variant={group.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
-                            {group.active ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                          <Badge variant={group.active ? 'success' : 'outline'} className="sm:hidden">
-                            {group.active ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                          <span>{group.schedule || 'Sin horario'}</span>
-                          <span>{group.studentCount} alumnos</span>
-                        </div>
-                      </div>
-                    </Link>
+          <AppCard title="Listado de grupos" description="Prioriza asistencia, estado del grupo y responsable asignado.">
+            <div className="divide-y divide-border/70">
+              {filteredGroups.map((group) => {
+                const attendanceAction = getAttendanceAction(group)
 
-                    <div className="rounded-[0.95rem] bg-secondary/45 px-3 py-2 text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">Catequista:</span>{' '}
-                      {group.catechists[0] || 'Sin asignar'}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-muted-foreground">{group.pendingActivities} actividades pendientes</p>
-                      <div className="flex items-center gap-2">
-                        <SecondaryButton asChild>
-                          <Link to={`/app/groups/${group.id}`} state={detailState}>
-                            Abrir
-                          </Link>
-                        </SecondaryButton>
-                        <SecondaryButton type="button" size="icon" onClick={() => setActionGroup(group)}>
-                          <MoreHorizontal className="size-4" />
-                        </SecondaryButton>
-                      </div>
-                    </div>
-                  </div>
-                </AppCard>
-              ))}
-            </div>
-          ) : null}
-
-          {viewMode === 'list' ? (
-            <AppCard title="Listado de grupos" description="Vista simple para ubicar un grupo y abrir su detalle.">
-              <div className="divide-y divide-border/70">
-                {filteredGroups.map((group) => (
-                  <div key={group.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                return (
+                  <div key={group.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
                       <EntityAvatar icon={Users} label={group.name} tone="warning" className="size-12" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-2">
-                          <p className="truncate font-semibold">{group.name}</p>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button type="button" className="truncate text-left font-semibold hover:text-primary" onClick={() => navigate(`/app/groups/${group.id}`, { state: detailState })}>
+                            {group.name}
+                          </button>
                           <Badge variant={group.active ? 'success' : 'outline'} className="shrink-0">{group.active ? 'Activo' : 'Inactivo'}</Badge>
                         </div>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {group.schedule || 'Sin horario'} • {group.studentCount} alumnos
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          Catequista: {group.catechists[0] || 'Sin asignar'}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{formatYearLabel(group.year)} • {group.schedule || 'Sin horario definido'} • {group.studentCount} alumnos</p>
+                        <p className="text-xs text-muted-foreground">Catequista: {group.catechists[0] || 'Sin asignar'}</p>
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          <span className="rounded-full bg-secondary px-3 py-1">{group.pendingActivities} actividades pendientes</span>
+                          <span className="rounded-full bg-secondary px-3 py-1">{group.lastAttendanceDate ? `Ultima asistencia ${group.lastAttendanceDate}` : 'Sin asistencia registrada'}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+                      <PrimaryButton asChild>
+                        <Link to={attendanceAction.to} state={{ from: location.pathname + location.search, label: 'Volver a grupos' }}>
+                          Asistencia
+                        </Link>
+                      </PrimaryButton>
                       <SecondaryButton asChild>
                         <Link to={`/app/groups/${group.id}`} state={detailState}>
-                          Abrir
+                          Abrir grupo
                         </Link>
                       </SecondaryButton>
                       <SecondaryButton type="button" size="icon" onClick={() => setActionGroup(group)}>
@@ -236,53 +223,10 @@ export function GroupsPage() {
                       </SecondaryButton>
                     </div>
                   </div>
-                ))}
-              </div>
-            </AppCard>
-          ) : null}
-
-          {viewMode === 'table' ? (
-            <AppCard>
-              <div className="no-scrollbar overflow-x-auto">
-                <table className="min-w-[46rem] w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-3 py-3 font-medium">Grupo</th>
-                      <th className="px-3 py-3 font-medium">Horario</th>
-                      <th className="px-3 py-3 font-medium">Catequistas</th>
-                      <th className="px-3 py-3 font-medium">Alumnos</th>
-                      <th className="px-3 py-3 font-medium">Pendientes</th>
-                      <th className="px-3 py-3 font-medium">Estado</th>
-                      <th className="px-3 py-3 font-medium text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredGroups.map((group) => (
-                      <tr key={group.id} className="border-b border-border/40">
-                        <td className="px-3 py-3">
-                           <button type="button" className="font-medium text-left hover:text-primary" onClick={() => navigate(`/app/groups/${group.id}`, { state: detailState })}>
-                             {group.name}
-                           </button>
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">{group.schedule || 'Sin horario'}</td>
-                        <td className="px-3 py-3 text-muted-foreground">{group.catechists.join(', ') || 'Sin asignar'}</td>
-                        <td className="px-3 py-3">{group.studentCount}</td>
-                        <td className="px-3 py-3">{group.pendingActivities}</td>
-                        <td className="px-3 py-3">
-                          <Badge variant={group.active ? 'success' : 'outline'}>{group.active ? 'Activo' : 'Inactivo'}</Badge>
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <SecondaryButton type="button" size="icon" onClick={() => setActionGroup(group)}>
-                            <MoreHorizontal className="size-4" />
-                          </SecondaryButton>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </AppCard>
-          ) : null}
+                )
+              })}
+            </div>
+          </AppCard>
 
           <PaginationControls
             page={page}
@@ -336,10 +280,15 @@ export function GroupsPage() {
       <ActionSheet
         open={showFilters}
         onOpenChange={setShowFilters}
-        title="Vista del listado"
-        description="Elige cómo quieres revisar los grupos en esta pantalla."
+        title="Ayuda de uso"
+        description="Estas trabajando dentro del año activo y esta guia te ayuda a encontrar rapido el grupo correcto."
       >
-        <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <div className="space-y-4 px-1 pb-1 text-sm text-muted-foreground">
+          <p><span className="font-medium text-foreground">Año activo:</span> {formatYearLabel(activeYear)}</p>
+          <p>1. Usa la busqueda para ubicar el grupo.</p>
+          <p>2. Entra por <span className="font-medium text-foreground">Asistencia</span> si estas en jornada.</p>
+          <p>3. Usa <span className="font-medium text-foreground">Abrir grupo</span> para revisar alumnos y detalle.</p>
+        </div>
       </ActionSheet>
 
       <ActionSheet
@@ -392,6 +341,7 @@ export function GroupsPage() {
                 setSelectedGroup({
                   id: actionGroup.id,
                   name: actionGroup.name,
+                  year: actionGroup.year,
                   schedule: actionGroup.schedule,
                   description: actionGroup.description,
                   catechistIds: groupCatechistIds,

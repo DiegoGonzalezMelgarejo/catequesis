@@ -5,7 +5,17 @@ import './index.css'
 import App from './App.tsx'
 import { AppProviders } from '@/app/providers'
 
-registerSW({ immediate: true })
+if (import.meta.env.PROD) {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(() => {
+      registerSW()
+    })
+  } else {
+    setTimeout(() => {
+      registerSW()
+    }, 0)
+  }
+}
 
 createRoot(document.getElementById('root')!).render(
   <AppProviders>

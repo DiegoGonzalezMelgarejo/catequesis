@@ -7,8 +7,17 @@ type BeforeInstallPromptEvent = Event & {
 
 export function useInstallPrompt() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const isIos = useMemo(() => /iphone|ipad|ipod/i.test(window.navigator.userAgent), [])
+  const isMobileDevice = useMemo(() => {
+    const userAgent = window.navigator.userAgent
+    return /android|iphone|ipad|ipod|mobile/i.test(userAgent)
+  }, [])
 
   useEffect(() => {
+    if (!isMobileDevice) {
+      return
+    }
+
     function handleBeforeInstallPrompt(event: Event) {
       event.preventDefault()
       setInstallPrompt(event as BeforeInstallPromptEvent)
@@ -19,15 +28,14 @@ export function useInstallPrompt() {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     }
-  }, [])
-
-  const isIos = useMemo(() => /iphone|ipad|ipod/i.test(window.navigator.userAgent), [])
+  }, [isMobileDevice])
 
   return {
-    canInstall: Boolean(installPrompt),
+    canInstall: isMobileDevice && Boolean(installPrompt),
     isIos,
+    isMobileDevice,
     installApp: async () => {
-      if (!installPrompt) {
+      if (!isMobileDevice || !installPrompt) {
         return false
       }
 

@@ -21,8 +21,17 @@ export function getTodayInputValue() {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
-export function calculateAge(birthDate: string) {
+export function calculateAge(birthDate?: string) {
+  if (!birthDate) {
+    return null
+  }
+
   const birth = new Date(birthDate)
+
+  if (Number.isNaN(birth.getTime())) {
+    return null
+  }
+
   const today = new Date()
 
   let age = today.getFullYear() - birth.getFullYear()

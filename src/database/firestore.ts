@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import {
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  memoryLocalCache,
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -17,18 +16,23 @@ const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig)
 
 export const firestore = initializeFirestore(firebaseApp, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
+  localCache: memoryLocalCache(),
 })
 
 export const firestoreCollections = {
+  parishes: 'parishes',
   users: 'users',
+  annualPeriods: 'annual_periods',
   groups: 'groups',
   userGroups: 'user_groups',
   students: 'students',
   sacraments: 'sacraments',
   studentSacraments: 'student_sacraments',
+  sacramentChecklists: 'sacrament_checklists',
+  checklistCatalog: 'checklist_catalog',
+  documentRequirements: 'document_requirements',
+  studentDocumentProgress: 'student_document_progress',
+  studentChecklistProgress: 'student_checklist_progress',
   guardians: 'guardians',
   attendanceSessions: 'attendance_sessions',
   attendanceRecords: 'attendance_records',

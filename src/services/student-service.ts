@@ -11,10 +11,22 @@ import {
 import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore'
 import { canAccessStudent, getAccessibleGroupIds } from '@/services/access-service'
 import { notifyDataChanged } from '@/store/data-store'
-import type { ActivityType, AttendanceStatus, Guardian, SacramentName, Student, User } from '@/types/models'
+import type {
+  ActivityType,
+  AttendanceStatus,
+  ChecklistCatalogItem,
+  DocumentRequirement,
+  Guardian,
+  SacramentName,
+  Student,
+  StudentChecklistProgress,
+  StudentDocumentProgress,
+  User,
+} from '@/types/models'
 import { calculateAge } from '@/utils/date'
 import { createId, createLocalMeta } from '@/utils/entity'
 import { buildSearchTokens, normalizeSearchText } from '@/utils/search'
+import { getCurrentYear } from '@/utils/year'
 
 export type GuardianInput = {
   name: string
@@ -29,7 +41,8 @@ export type StudentInput = {
   id?: string
   firstName: string
   lastName: string
-  birthDate: string
+  birthDate?: string
+  activeYear?: number
   observations?: string
   groupId: string
   sacramentIds: string[]
@@ -38,10 +51,12 @@ export type StudentInput = {
 
 export type StudentOverview = Student & {
   fullName: string
-  age: number
+  age: number | null
   groupName: string
   guardianCount: number
   sacramentCount: number
+  checklistProgressPercent: number
+  documentProgressPercent: number
 }
 
 export type StudentsPageResult = {
@@ -75,19 +90,69 @@ export type StudentHistory = {
   }
 }
 
-export async function getStudentOverviews(user: User) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user)
-  const [students, groups, guardians, studentSacraments] = await Promise.all([
+function buildStudentProgressMaps(
+  studentIds: string[],
+  studentSacraments: Array<{ studentId: string; sacramentId: string }>,
+  checklistCatalog: ChecklistCatalogItem[],
+  documentRequirements: DocumentRequirement[],
+  checklistProgress: StudentChecklistProgress[],
+  documentProgress: StudentDocumentProgress[],
+) {
+  const checklistProgressMap = new Map(checklistProgress.map((entry) => [entry.studentId, entry.checkedItemIds]))
+  const documentProgressMap = new Map(documentProgress.map((entry) => [entry.studentId, entry.deliveredRequirementIds]))
+
+  return new Map(
+    studentIds.map((studentId) => {
+      const sacramentIds = studentSacraments
+        .filter((record) => record.studentId === studentId)
+        .map((record) => record.sacramentId)
+      const checklistItems = checklistCatalog.filter((item) => item.sacramentIds.some((sacramentId) => sacramentIds.includes(sacramentId)))
+      const documentItems = documentRequirements.filter((item) => item.sacramentIds.some((sacramentId) => sacramentIds.includes(sacramentId)))
+      const checkedChecklistIds = checklistProgressMap.get(studentId) ?? []
+      const deliveredDocumentIds = documentProgressMap.get(studentId) ?? []
+
+      return [
+        studentId,
+        {
+          checklistProgressPercent:
+            checklistItems.length === 0
+              ? 0
+              : Math.round((checklistItems.filter((item) => checkedChecklistIds.includes(item.id)).length / checklistItems.length) * 100),
+          documentProgressPercent:
+            documentItems.length === 0
+              ? 0
+              : Math.round((documentItems.filter((item) => deliveredDocumentIds.includes(item.id)).length / documentItems.length) * 100),
+        },
+      ] as const
+    }),
+  )
+}
+
+export async function getStudentOverviews(user: User, yearFilter?: number) {
+  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
+  const [students, groups, guardians, studentSacraments, checklistCatalog, documentRequirements, checklistProgress, documentProgress] = await Promise.all([
     listDocuments<Student>('students'),
     listDocuments<{ id: string; name: string }>('groups'),
     listDocuments<Guardian>('guardians'),
-    listDocuments<{ id: string; studentId: string }>('studentSacraments'),
+    listDocuments<{ id: string; studentId: string; sacramentId: string }>('studentSacraments'),
+    listDocuments<ChecklistCatalogItem>('checklistCatalog'),
+    listDocuments<DocumentRequirement>('documentRequirements'),
+    listDocuments<StudentChecklistProgress>('studentChecklistProgress'),
+    listDocuments<StudentDocumentProgress>('studentDocumentProgress'),
   ])
 
   const groupMap = new Map(groups.map((group) => [group.id, group.name]))
+  const progressMap = buildStudentProgressMaps(
+    students.map((student) => student.id),
+    studentSacraments,
+    checklistCatalog,
+    documentRequirements,
+    checklistProgress,
+    documentProgress,
+  )
 
   return students
-    .filter((student) => user.role === 'ADMIN' || accessibleGroupIds.includes(student.groupId))
+    .filter((student) => (user.role === 'ADMIN' || accessibleGroupIds.includes(student.groupId)) && (yearFilter ? student.year === yearFilter : true))
     .map((student) => ({
       ...student,
       fullName: `${student.firstName} ${student.lastName}`,
@@ -95,8 +160,10 @@ export async function getStudentOverviews(user: User) {
       groupName: groupMap.get(student.groupId) ?? 'Sin grupo',
       guardianCount: guardians.filter((guardian) => guardian.studentId === student.id).length,
       sacramentCount: studentSacraments.filter((record) => record.studentId === student.id).length,
+      checklistProgressPercent: progressMap.get(student.id)?.checklistProgressPercent ?? 0,
+      documentProgressPercent: progressMap.get(student.id)?.documentProgressPercent ?? 0,
     }))
-    .sort((left, right) => left.fullName.localeCompare(right.fullName, 'es'))
+    .sort((left, right) => right.year - left.year || left.fullName.localeCompare(right.fullName, 'es'))
 }
 
 export async function getStudentsPage(
@@ -104,6 +171,7 @@ export async function getStudentsPage(
   cursor: QueryDocumentSnapshot<DocumentData> | null,
   pageSize = 20,
   groupFilter?: string,
+  yearFilter?: number,
   search = '',
 ) {
   const accessibleGroupIds = await getAccessibleGroupIds(user)
@@ -116,9 +184,13 @@ export async function getStudentsPage(
       : user.role === 'ADMIN'
         ? activeGroupFilter
           ? [{ field: 'groupId', operator: '==', value: activeGroupFilter }]
+          : yearFilter
+            ? [{ field: 'year', operator: '==', value: yearFilter }]
           : []
         : activeGroupFilter
           ? [{ field: 'groupId', operator: '==', value: activeGroupFilter }]
+          : yearFilter
+            ? [{ field: 'year', operator: '==', value: yearFilter }]
           : accessibleGroupIds.length > 0 && accessibleGroupIds.length <= 10
             ? [{ field: 'groupId', operator: 'in', value: accessibleGroupIds }]
             : [],
@@ -131,22 +203,36 @@ export async function getStudentsPage(
   const visibleStudents =
     user.role === 'ADMIN'
       ? studentsPage.items.filter((student) =>
-          activeGroupFilter ? student.groupId === activeGroupFilter : true,
+          (yearFilter ? student.year === yearFilter : true) &&
+          (activeGroupFilter ? student.groupId === activeGroupFilter : true),
         )
       : studentsPage.items.filter(
           (student) =>
             accessibleGroupIds.includes(student.groupId) &&
+            (yearFilter ? student.year === yearFilter : true) &&
             (activeGroupFilter ? student.groupId === activeGroupFilter : true),
         )
 
   const studentIds = visibleStudents.map((student) => student.id)
   const groupIds = [...new Set(visibleStudents.map((student) => student.groupId))]
-  const [groups, guardians, studentSacraments] = await Promise.all([
+  const [groups, guardians, studentSacraments, checklistCatalog, documentRequirements, checklistProgress, documentProgress] = await Promise.all([
     getDocumentsByIds<{ id: string; name: string }>('groups', groupIds),
     getDocumentsByFieldIn<Guardian>('guardians', 'studentId', studentIds),
-    getDocumentsByFieldIn<{ id: string; studentId: string }>('studentSacraments', 'studentId', studentIds),
+    getDocumentsByFieldIn<{ id: string; studentId: string; sacramentId: string }>('studentSacraments', 'studentId', studentIds),
+    listDocuments<ChecklistCatalogItem>('checklistCatalog'),
+    listDocuments<DocumentRequirement>('documentRequirements'),
+    listDocuments<StudentChecklistProgress>('studentChecklistProgress'),
+    listDocuments<StudentDocumentProgress>('studentDocumentProgress'),
   ])
   const groupMap = new Map(groups.map((group) => [group.id, group.name]))
+  const progressMap = buildStudentProgressMaps(
+    studentIds,
+    studentSacraments,
+    checklistCatalog,
+    documentRequirements,
+    checklistProgress,
+    documentProgress,
+  )
 
   return {
     items: visibleStudents.map((student) => ({
@@ -156,7 +242,9 @@ export async function getStudentsPage(
       groupName: groupMap.get(student.groupId) ?? 'Sin grupo',
       guardianCount: guardians.filter((guardian) => guardian.studentId === student.id).length,
       sacramentCount: studentSacraments.filter((record) => record.studentId === student.id).length,
-    })),
+      checklistProgressPercent: progressMap.get(student.id)?.checklistProgressPercent ?? 0,
+      documentProgressPercent: progressMap.get(student.id)?.documentProgressPercent ?? 0,
+    })).sort((left, right) => right.year - left.year || left.fullName.localeCompare(right.fullName, 'es')),
     nextCursor: studentsPage.nextCursor,
     hasMore: studentsPage.hasMore,
   } satisfies StudentsPageResult
@@ -164,14 +252,23 @@ export async function getStudentsPage(
 
 export async function saveStudent(input: StudentInput) {
   const studentId = input.id ?? createId()
-  const [existingStudent, guardians, studentSacraments] = await Promise.all([
+  const [existingStudent, guardians, studentSacraments, group] = await Promise.all([
     input.id ? getDocumentById<Student>('students', input.id) : Promise.resolve(undefined),
     listDocuments<Guardian>('guardians'),
     listDocuments<{ id: string; studentId: string }>('studentSacraments'),
+    getDocumentById<{ id: string; name: string; year?: number }>('groups', input.groupId),
   ])
 
   if (input.id && !existingStudent) {
     throw new Error('No se encontro el alumno a editar.')
+  }
+
+  if (!group) {
+    throw new Error('Selecciona un grupo valido para asignar el corte anual.')
+  }
+
+  if (input.activeYear && (group.year ?? getCurrentYear()) !== input.activeYear) {
+    throw new Error('Solo puedes registrar alumnos en grupos del año activo.')
   }
 
   const normalizedGuardians = input.guardians.filter(
@@ -187,7 +284,8 @@ export async function saveStudent(input: StudentInput) {
     id: studentId,
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
-    birthDate: input.birthDate,
+    birthDate: input.birthDate?.trim() || '',
+    year: group.year ?? getCurrentYear(),
     observations: input.observations?.trim(),
     active: existingStudent?.active ?? true,
     groupId: input.groupId,
@@ -195,6 +293,7 @@ export async function saveStudent(input: StudentInput) {
       `${input.firstName.trim()} ${input.lastName.trim()}`,
       input.firstName,
       input.lastName,
+      (group.year ?? getCurrentYear()).toString(),
       input.observations,
     ),
     ...createLocalMeta(existingStudent?.createdAt, 'synced'),
@@ -267,7 +366,7 @@ export async function getStudentHistory(user: User, studentId: string) {
     return null
   }
 
-  const [student, groups, guardians, studentSacraments, sacraments, attendanceRecords, attendanceSessions, activities, activityGrades] =
+  const [student, groups, guardians, studentSacraments, sacraments, attendanceRecords, attendanceSessions, activities, activityGrades, checklistCatalog, documentRequirements, checklistProgress, documentProgress] =
     await Promise.all([
       getDocumentById<Student>('students', studentId),
       listDocuments<{ id: string; name: string }>('groups'),
@@ -297,6 +396,10 @@ export async function getStudentHistory(user: User, studentId: string) {
         grade: number
         observations?: string
       }>('activityGrades'),
+      listDocuments<ChecklistCatalogItem>('checklistCatalog'),
+      listDocuments<DocumentRequirement>('documentRequirements'),
+      listDocuments<StudentChecklistProgress>('studentChecklistProgress'),
+      listDocuments<StudentDocumentProgress>('studentDocumentProgress'),
     ])
 
   if (!student) {
@@ -305,8 +408,17 @@ export async function getStudentHistory(user: User, studentId: string) {
 
   const studentGuardians = guardians.filter((guardian) => guardian.studentId === studentId)
   const studentSacramentLinks = studentSacraments.filter((record) => record.studentId === studentId)
+  const studentSacramentIds = studentSacramentLinks.map((record) => record.sacramentId)
   const studentAttendanceRecords = attendanceRecords.filter((record) => record.studentId === studentId)
   const studentActivityGrades = activityGrades.filter((grade) => grade.studentId === studentId)
+  const applicableChecklistItems = checklistCatalog.filter((item) =>
+    item.sacramentIds.some((sacramentId) => studentSacramentIds.includes(sacramentId)),
+  )
+  const applicableDocumentItems = documentRequirements.filter((item) =>
+    item.sacramentIds.some((sacramentId) => studentSacramentIds.includes(sacramentId)),
+  )
+  const checkedChecklistIds = checklistProgress.find((entry) => entry.studentId === studentId)?.checkedItemIds ?? []
+  const deliveredDocumentIds = documentProgress.find((entry) => entry.studentId === studentId)?.deliveredRequirementIds ?? []
 
   const groupName = groups.find((group) => group.id === student.groupId)?.name ?? 'Sin grupo'
   const sessionMap = new Map(attendanceSessions.map((session) => [session.id, session]))
@@ -345,6 +457,14 @@ export async function getStudentHistory(user: User, studentId: string) {
       groupName,
       guardianCount: studentGuardians.length,
       sacramentCount: sacramentNames.length,
+      checklistProgressPercent:
+        applicableChecklistItems.length === 0
+          ? 0
+          : Math.round((applicableChecklistItems.filter((item) => checkedChecklistIds.includes(item.id)).length / applicableChecklistItems.length) * 100),
+      documentProgressPercent:
+        applicableDocumentItems.length === 0
+          ? 0
+          : Math.round((applicableDocumentItems.filter((item) => deliveredDocumentIds.includes(item.id)).length / applicableDocumentItems.length) * 100),
     },
     guardians: studentGuardians,
     sacraments: sacramentNames,

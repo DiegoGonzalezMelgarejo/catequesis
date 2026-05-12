@@ -17,6 +17,7 @@ import { createId, createLocalMeta } from '@/utils/entity'
 export type ActivityInput = {
   id?: string
   groupId: string
+  activeYear?: number
   title: string
   description?: string
   date: string
@@ -43,11 +44,11 @@ export type ActivityGradeInput = {
   observations?: string
 }
 
-export async function getActivityOverviews(user: User, groupFilter?: string) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user)
+export async function getActivityOverviews(user: User, groupFilter?: string, yearFilter?: number) {
+  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
   const [activities, groups, students, grades] = await Promise.all([
     listDocuments<Activity>('activities'),
-    listDocuments<{ id: string; name: string }>('groups'),
+    listDocuments<{ id: string; name: string; year: number }>('groups'),
     listDocuments<{ id: string; groupId: string; active: boolean }>('students'),
     listDocuments<{ id: string; activityId: string }>('activityGrades'),
   ])
@@ -58,7 +59,8 @@ export async function getActivityOverviews(user: User, groupFilter?: string) {
     .filter((activity) => {
       const canSeeGroup = user.role === 'ADMIN' || accessibleGroupIds.includes(activity.groupId)
       const matchesGroup = groupFilter ? activity.groupId === groupFilter : true
-      return canSeeGroup && matchesGroup
+      const matchesYear = yearFilter ? groups.find((group) => group.id === activity.groupId)?.year === yearFilter : true
+      return canSeeGroup && matchesGroup && matchesYear
     })
     .map((activity) => ({
       ...activity,
@@ -74,8 +76,9 @@ export async function getActivitiesPage(
   cursor: QueryDocumentSnapshot<DocumentData> | null,
   pageSize = 20,
   groupFilter?: string,
+  yearFilter?: number,
 ) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user)
+  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
   const activeGroupFilter = groupFilter || undefined
 
   const activitiesPage = await paginateDocuments<Activity>('activities', {
@@ -99,14 +102,17 @@ export async function getActivitiesPage(
     user.role === 'ADMIN'
       ? activitiesPage.items
       : activitiesPage.items.filter((activity) => accessibleGroupIds.includes(activity.groupId))
-  const sortedVisibleActivities = [...visibleActivities].sort((left, right) =>
+  const filteredActivitiesByYear = yearFilter
+    ? visibleActivities.filter((activity) => accessibleGroupIds.includes(activity.groupId))
+    : visibleActivities
+  const sortedVisibleActivities = [...filteredActivitiesByYear].sort((left, right) =>
     right.date.localeCompare(left.date),
   )
 
-  const groupIds = [...new Set(visibleActivities.map((activity) => activity.groupId))]
-  const activityIds = visibleActivities.map((activity) => activity.id)
+  const groupIds = [...new Set(filteredActivitiesByYear.map((activity) => activity.groupId))]
+  const activityIds = filteredActivitiesByYear.map((activity) => activity.id)
   const [groups, students, grades] = await Promise.all([
-    getDocumentsByIds<{ id: string; name: string }>('groups', groupIds),
+    getDocumentsByIds<{ id: string; name: string; year: number }>('groups', groupIds),
     getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', groupIds),
     getDocumentsByFieldIn<{ id: string; activityId: string }>('activityGrades', 'activityId', activityIds),
   ])
@@ -125,9 +131,10 @@ export async function getActivitiesPage(
 }
 
 export async function saveActivity(input: ActivityInput) {
-  const [existingActivity, currentUser] = await Promise.all([
+  const [existingActivity, currentUser, group] = await Promise.all([
     input.id ? getDocumentById<Activity>('activities', input.id) : Promise.resolve(undefined),
     getDocumentById<User>('users', input.createdBy),
+    getDocumentById<{ id: string; year?: number }>('groups', input.groupId),
   ])
 
   if (input.id && !existingActivity) {
@@ -136,6 +143,14 @@ export async function saveActivity(input: ActivityInput) {
 
   if (!currentUser) {
     throw new Error('No se encontro el usuario que crea la actividad.')
+  }
+
+  if (!group) {
+    throw new Error('No se encontro el grupo de la actividad.')
+  }
+
+  if (input.activeYear && (group.year ?? new Date().getFullYear()) !== input.activeYear) {
+    throw new Error('Solo puedes crear actividades dentro del año activo.')
   }
 
   const hasAccess = await canAccessGroup(currentUser, input.groupId)

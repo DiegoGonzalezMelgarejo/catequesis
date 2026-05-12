@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   resolve: {
     tsconfigPaths: true,
   },
@@ -53,8 +53,9 @@ export default defineConfig({
         navigateFallback: 'index.html',
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
+        suppressWarnings: command === 'serve',
       },
     }),
   ],
-})
+}))

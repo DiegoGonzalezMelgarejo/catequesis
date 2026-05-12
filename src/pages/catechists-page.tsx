@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Edit3, ListFilter, MoreHorizontal, UserPlus, UserRound, UserRoundX } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -16,7 +16,6 @@ import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
-import { ViewModeToggle, type ViewMode } from '@/components/app/view-mode-toggle'
 import { listDocuments } from '@/database/firestore-repository'
 import { CatechistForm, type EditableCatechist } from '@/features/catechists/catechist-form'
 import { useAsyncData } from '@/hooks/use-async-data'
@@ -38,17 +37,6 @@ export function CatechistsPage() {
   const [confirmState, setConfirmState] = useState<{ id: string; active: boolean; name: string } | null>(null)
   const [actionCatechist, setActionCatechist] = useState<CatechistOverview | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window === 'undefined') {
-      return 'list'
-    }
-
-    return (window.localStorage.getItem('catechists-view-mode') as ViewMode | null) ?? 'list'
-  })
-
-  useEffect(() => {
-    window.localStorage.setItem('catechists-view-mode', viewMode)
-  }, [viewMode])
 
   const fetchPage = useCallback(
     (cursor: Parameters<typeof getCatechistsPage>[0], pageSize: number) =>
@@ -96,6 +84,9 @@ export function CatechistsPage() {
   const filteredCatechists = pagedCatechists.filter((catechist) =>
     `${catechist.fullName} ${catechist.username}`.toLowerCase().includes(search.toLowerCase()),
   )
+  const activeCatechists = filteredCatechists.filter((catechist) => catechist.active).length
+  const withoutGroups = filteredCatechists.filter((catechist) => catechist.groupCount === 0).length
+  const withContact = filteredCatechists.filter((catechist) => catechist.email || catechist.phone).length
 
   function openCatechistEditor(catechist: CatechistOverview) {
     setSelectedCatechist({
@@ -129,12 +120,9 @@ export function CatechistsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-3 sm:flex-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <SearchInput value={search} onChange={setSearch} placeholder="Buscar catequista" />
-          <div className="hidden sm:block">
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-          </div>
           <SecondaryButton className="sm:hidden" type="button" onClick={() => setShowFilters(true)}>
             <ListFilter className="size-4" />
-            Vista
+            Ayuda
           </SecondaryButton>
         </div>
         <PrimaryButton
@@ -150,147 +138,67 @@ export function CatechistsPage() {
         </PrimaryButton>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Activos</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{activeCatechists}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Sin grupos</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{withoutGroups}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Con contacto</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{withContact}</p>
+          </div>
+        </AppCard>
+      </div>
+
       {filteredCatechists.length === 0 ? (
         <EmptyState title="Sin catequistas" description="Crea el primer catequista para asignar grupos." icon={UserPlus} />
       ) : (
         <>
-          {viewMode === 'cards' ? (
-            <div className="space-y-3">
-              {filteredCatechists.map((catechist) => {
-                return (
-                  <AppCard key={catechist.id} interactive>
-                    <div className="space-y-3">
-                      <Link
-                        to={`/app/catechists/${catechist.id}`}
-                        state={detailState}
-                        className="flex w-full items-center gap-3 rounded-[0.95rem] bg-secondary/35 p-3 text-left transition hover:bg-secondary/55"
-                      >
-                        <EntityAvatar icon={UserRound} label={catechist.fullName} className="size-14 sm:size-16" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-base font-semibold sm:text-lg">{catechist.fullName}</p>
-                              <p className="text-xs text-muted-foreground sm:text-sm">@{catechist.username}</p>
-                            </div>
-                            <Badge variant={catechist.active ? 'success' : 'outline'} className="hidden sm:inline-flex">
-                              {catechist.active ? 'Activo' : 'Inactivo'}
-                            </Badge>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                            <Badge variant={catechist.active ? 'success' : 'outline'} className="sm:hidden">
-                              {catechist.active ? 'Activo' : 'Inactivo'}
-                            </Badge>
-                            <span>{catechist.groupCount} grupos</span>
-                            <span>{catechist.email || catechist.phone || 'Sin contacto'}</span>
-                          </div>
-                        </div>
-                      </Link>
-
-                    <div className="rounded-[0.95rem] bg-secondary/45 px-3 py-2 text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">Grupo principal:</span>{' '}
-                        {catechist.groupNames[0] || 'Sin asignar'}
+          <AppCard title="Listado de catequistas" description="Ubica rapido a cada responsable, su contacto y sus grupos asignados.">
+            <div className="divide-y divide-border/70">
+              {filteredCatechists.map((catechist) => (
+                <div key={catechist.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <EntityAvatar icon={UserRound} label={catechist.fullName} className="size-12" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="truncate text-left font-semibold hover:text-primary"
+                          onClick={() => navigate(`/app/catechists/${catechist.id}`, { state: detailState })}
+                        >
+                          {catechist.fullName}
+                        </button>
+                        <Badge variant={catechist.active ? 'success' : 'outline'} className="shrink-0">{catechist.active ? 'Activo' : 'Inactivo'}</Badge>
                       </div>
-
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs text-muted-foreground">{catechist.groupCount} grupos asignados</p>
-                        <div className="flex items-center gap-2">
-                          <SecondaryButton asChild>
-                            <Link to={`/app/catechists/${catechist.id}`} state={detailState}>
-                              Abrir
-                            </Link>
-                          </SecondaryButton>
-                          <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
-                            <MoreHorizontal className="size-4" />
-                          </SecondaryButton>
-                        </div>
-                      </div>
-                    </div>
-                  </AppCard>
-                )
-              })}
-            </div>
-          ) : null}
-
-          {viewMode === 'list' ? (
-            <AppCard title="Listado de catequistas" description="Vista simple para ubicar un catequista y abrir su ficha.">
-              <div className="divide-y divide-border/70">
-                {filteredCatechists.map((catechist) => (
-                  <div key={catechist.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <EntityAvatar icon={UserRound} label={catechist.fullName} className="size-12" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-2">
-                          <p className="truncate font-semibold">{catechist.fullName}</p>
-                          <Badge variant={catechist.active ? 'success' : 'outline'} className="shrink-0">{catechist.active ? 'Activo' : 'Inactivo'}</Badge>
-                        </div>
-                        <p className="truncate text-sm text-muted-foreground">
-                          @{catechist.username} • {catechist.groupCount} grupos
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          Contacto: {catechist.email || catechist.phone || 'Sin registrar'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SecondaryButton asChild>
-                        <Link to={`/app/catechists/${catechist.id}`} state={detailState}>
-                          Abrir
-                        </Link>
-                      </SecondaryButton>
-                      <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
-                        <MoreHorizontal className="size-4" />
-                      </SecondaryButton>
+                      <p className="text-sm text-muted-foreground">@{catechist.username} • {catechist.groupCount} grupos</p>
+                      <p className="text-xs text-muted-foreground">Contacto: {catechist.email || catechist.phone || 'Sin registrar'}</p>
+                      <p className="text-xs text-muted-foreground">Grupo principal: {catechist.groupNames[0] || 'Sin asignar'}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </AppCard>
-          ) : null}
-
-          {viewMode === 'table' ? (
-            <AppCard>
-              <div className="no-scrollbar overflow-x-auto">
-                <table className="min-w-[44rem] w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-3 py-3 font-medium">Catequista</th>
-                      <th className="px-3 py-3 font-medium">Usuario</th>
-                      <th className="px-3 py-3 font-medium">Contacto</th>
-                      <th className="px-3 py-3 font-medium">Grupos</th>
-                      <th className="px-3 py-3 font-medium">Estado</th>
-                      <th className="px-3 py-3 font-medium text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCatechists.map((catechist) => (
-                      <tr key={catechist.id} className="border-b border-border/40">
-                        <td className="px-3 py-3">
-                          <button
-                            type="button"
-                            className="font-medium text-left hover:text-primary"
-                            onClick={() => navigate(`/app/catechists/${catechist.id}`, { state: detailState })}
-                          >
-                            {catechist.fullName}
-                          </button>
-                        </td>
-                        <td className="px-3 py-3 text-muted-foreground">@{catechist.username}</td>
-                        <td className="px-3 py-3 text-muted-foreground">{catechist.email || catechist.phone || 'Sin contacto'}</td>
-                        <td className="px-3 py-3">{catechist.groupCount}</td>
-                        <td className="px-3 py-3">
-                          <Badge variant={catechist.active ? 'success' : 'outline'}>{catechist.active ? 'Activo' : 'Inactivo'}</Badge>
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
-                            <MoreHorizontal className="size-4" />
-                          </SecondaryButton>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </AppCard>
-          ) : null}
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <SecondaryButton asChild>
+                      <Link to={`/app/catechists/${catechist.id}`} state={detailState}>
+                        Abrir ficha
+                      </Link>
+                    </SecondaryButton>
+                    <SecondaryButton type="button" size="icon" onClick={() => setActionCatechist(catechist)}>
+                      <MoreHorizontal className="size-4" />
+                    </SecondaryButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </AppCard>
 
           <PaginationControls
             page={page}
@@ -321,10 +229,14 @@ export function CatechistsPage() {
       <ActionSheet
         open={showFilters}
         onOpenChange={setShowFilters}
-        title="Vista del listado"
-        description="Elige cómo revisar la lista de catequistas."
+        title="Ayuda de uso"
+        description="La pantalla ya esta resumida para ubicar rapido al responsable correcto."
       >
-        <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <div className="space-y-3 px-1 pb-1 text-sm text-muted-foreground">
+          <p>1. Busca por nombre o usuario.</p>
+          <p>2. Abre la ficha para revisar grupos asignados.</p>
+          <p>3. Usa el menu de acciones para editar o cambiar el estado.</p>
+        </div>
       </ActionSheet>
 
         <CatechistForm

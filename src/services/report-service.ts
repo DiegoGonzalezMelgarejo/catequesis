@@ -21,9 +21,9 @@ export type ReportData = {
   totalStudents: number
 }
 
-export async function getReportData(user: User) {
+export async function getReportData(user: User, yearFilter?: number) {
   const [groupOverviews, attendanceSessions, attendanceRecords, activityGrades, activities] = await Promise.all([
-    getGroupOverviews(user),
+    getGroupOverviews(user, yearFilter),
     listDocuments<{ id: string; groupId: string }>('attendanceSessions'),
     listDocuments<{ id: string; sessionId: string; status: string }>('attendanceRecords'),
     listDocuments<{ id: string; activityId: string; grade: number }>('activityGrades'),

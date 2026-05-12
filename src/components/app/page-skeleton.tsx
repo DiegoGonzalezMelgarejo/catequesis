@@ -44,9 +44,14 @@ function ListSkeleton() {
         <Skeleton className="h-11 w-full sm:max-w-md" />
         <Skeleton className="h-11 w-40" />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index} className="h-24 rounded-[1rem]" />
+        ))}
+      </div>
+      <div className="space-y-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-56 rounded-[1rem]" />
+          <Skeleton key={index} className="h-36 rounded-[1rem]" />
         ))}
       </div>
     </>

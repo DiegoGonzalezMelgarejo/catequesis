@@ -11,14 +11,26 @@ import {
 import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore'
 import { canAccessGroup, getAccessibleGroupIds } from '@/services/access-service'
 import { notifyDataChanged } from '@/store/data-store'
-import type { ActivityType, AttendanceStatus, Group, User } from '@/types/models'
+import type {
+  ActivityType,
+  AttendanceStatus,
+  ChecklistCatalogItem,
+  DocumentRequirement,
+  Group,
+  StudentChecklistProgress,
+  StudentDocumentProgress,
+  User,
+} from '@/types/models'
 import { calculateAge } from '@/utils/date'
 import { createId, createLocalMeta } from '@/utils/entity'
 import { buildSearchTokens, normalizeSearchText } from '@/utils/search'
+import { getCurrentYear } from '@/utils/year'
 
 export type GroupInput = {
   id?: string
   name: string
+  year: number
+  activeYear?: number
   description?: string
   schedule?: string
   catechistIds: string[]
@@ -37,7 +49,7 @@ export type GroupDetailStudent = {
   lastName: string
   fullName: string
   birthDate: string
-  age: number
+  age: number | null
   observations?: string
   active: boolean
   guardianCount: number
@@ -48,6 +60,8 @@ export type GroupDetailStudent = {
   absenceCount: number
   lastAttendanceDate?: string
   lastAttendanceStatus?: AttendanceStatus
+  checklistProgressPercent: number
+  documentProgressPercent: number
 }
 
 export type GroupAttendanceDay = {
@@ -117,8 +131,8 @@ export type GroupsPageResult = {
   hasMore: boolean
 }
 
-export async function getGroupOverviews(user: User) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user)
+export async function getGroupOverviews(user: User, yearFilter?: number) {
+  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
   const [groups, users, userGroups, students, activities, activityGrades, attendanceSessions] =
     await Promise.all([
       listDocuments<Group>('groups'),
@@ -135,7 +149,7 @@ export async function getGroupOverviews(user: User) {
   )
 
   return groups
-    .filter((group) => user.role === 'ADMIN' || accessibleGroupIds.includes(group.id))
+    .filter((group) => (user.role === 'ADMIN' || accessibleGroupIds.includes(group.id)) && (yearFilter ? group.year === yearFilter : true))
     .map((group) => {
       const assignedCatechists = userGroups
         .filter((assignment) => assignment.groupId === group.id)
@@ -160,13 +174,14 @@ export async function getGroupOverviews(user: User) {
         lastAttendanceDate: lastAttendance?.date,
       }
     })
-    .sort((left, right) => left.name.localeCompare(right.name, 'es'))
+    .sort((left, right) => right.year - left.year || left.name.localeCompare(right.name, 'es'))
 }
 
 export async function getGroupsPage(
   user: User,
   cursor: QueryDocumentSnapshot<DocumentData> | null,
   pageSize = 20,
+  yearFilter?: number,
   search = '',
 ) {
   const normalizedSearch = normalizeSearchText(search)
@@ -178,7 +193,9 @@ export async function getGroupsPage(
     const groupsPage = await paginateDocuments<Group>('groups', {
       filters: normalizedSearch
         ? [{ field: 'searchTokens', operator: 'array-contains', value: normalizedSearch }]
-        : [],
+        : yearFilter
+          ? [{ field: 'year', operator: '==', value: yearFilter }]
+          : [],
       orderByField: normalizedSearch ? undefined : 'name',
       orderByDirection: 'asc',
       limitCount: pageSize,
@@ -199,6 +216,9 @@ export async function getGroupsPage(
     pageGroups = await getDocumentsByIds<Group>('groups', groupIds)
     if (normalizedSearch) {
       pageGroups = pageGroups.filter((group) => (group.searchTokens ?? []).includes(normalizedSearch))
+    }
+    if (yearFilter) {
+      pageGroups = pageGroups.filter((group) => group.year === yearFilter)
     }
     nextCursor = assignmentsPage.nextCursor
     hasMore = assignmentsPage.hasMore
@@ -247,17 +267,22 @@ export async function getGroupsPage(
         pendingActivities,
         lastAttendanceDate: lastAttendance?.date,
       }
-    }),
+    }).sort((left, right) => right.year - left.year || left.name.localeCompare(right.name, 'es')),
     nextCursor,
     hasMore,
   } satisfies GroupsPageResult
 }
 
 export async function saveGroup(input: GroupInput) {
+  if (input.activeYear && input.year !== input.activeYear) {
+    throw new Error('El grupo debe guardarse dentro del año activo seleccionado.')
+  }
+
   const groupId = input.id ?? createId()
-  const [existingGroup, userGroups] = await Promise.all([
+  const [existingGroup, userGroups, students] = await Promise.all([
     input.id ? getDocumentById<Group>('groups', input.id) : Promise.resolve(undefined),
     listDocuments<{ id: string; groupId: string; userId: string }>('userGroups'),
+    listDocuments<{ id: string; groupId: string; year: number }>('students'),
   ])
 
   if (input.id && !existingGroup) {
@@ -267,12 +292,27 @@ export async function saveGroup(input: GroupInput) {
   await putDocument('groups', {
     id: groupId,
     name: input.name.trim(),
+    year: input.year,
     description: input.description?.trim(),
     schedule: input.schedule?.trim(),
     active: existingGroup?.active ?? true,
-    searchTokens: buildSearchTokens(input.name, input.description, input.schedule),
+    searchTokens: buildSearchTokens(input.name, input.year.toString(), input.description, input.schedule),
     ...createLocalMeta(existingGroup?.createdAt, 'synced'),
   })
+
+  const studentsInGroup = students.filter((student) => student.groupId === groupId && student.year !== input.year)
+
+  if (studentsInGroup.length > 0) {
+    await putDocuments(
+      'students',
+      studentsInGroup.map((student) => ({
+        ...student,
+        year: input.year,
+        updatedAt: new Date().toISOString(),
+        syncStatus: 'synced' as const,
+      })),
+    )
+  }
 
   await deleteDocuments(
     'userGroups',
@@ -310,6 +350,7 @@ export async function getGroupDetail(user: User, groupId: string) {
       firstName: string
       lastName: string
       birthDate: string
+      year: number
       observations?: string
       active: boolean
       groupId: string
@@ -330,7 +371,7 @@ export async function getGroupDetail(user: User, groupId: string) {
     return null
   }
 
-  const [guardians, studentSacraments, attendanceRecords, activityGrades] = await Promise.all([
+  const [guardians, studentSacraments, attendanceRecords, activityGrades, checklistCatalog, documentRequirements, checklistProgress, documentProgress] = await Promise.all([
     listDocuments<{
       id: string
       studentId: string
@@ -355,6 +396,10 @@ export async function getGroupDetail(user: User, groupId: string) {
       grade: number
       observations?: string
     }>('activityGrades'),
+    listDocuments<ChecklistCatalogItem>('checklistCatalog'),
+    listDocuments<DocumentRequirement>('documentRequirements'),
+    listDocuments<StudentChecklistProgress>('studentChecklistProgress'),
+    listDocuments<StudentDocumentProgress>('studentDocumentProgress'),
   ])
 
   const filteredUserGroups = userGroups.filter((assignment) => assignment.groupId === groupId)
@@ -405,6 +450,9 @@ export async function getGroupDetail(user: User, groupId: string) {
     })
     .sort((left, right) => right.date.localeCompare(left.date))
 
+  const checklistProgressMap = new Map(checklistProgress.map((entry) => [entry.studentId, entry.checkedItemIds]))
+  const documentProgressMap = new Map(documentProgress.map((entry) => [entry.studentId, entry.deliveredRequirementIds]))
+
   const studentsDetail = groupStudents
     .map((student) => {
       const studentGuardians = guardians.filter((guardian) => guardian.studentId === student.id)
@@ -419,6 +467,17 @@ export async function getGroupDetail(user: User, groupId: string) {
       const positiveAttendance = studentAttendance.filter(
         (entry) => entry.status === 'PRESENTE' || entry.status === 'JUSTIFICADO',
       ).length
+      const studentSacramentIds = studentSacraments
+        .filter((record) => record.studentId === student.id)
+        .map((record) => record.sacramentId)
+      const applicableChecklistItems = checklistCatalog.filter((item) =>
+        item.sacramentIds.some((sacramentId) => studentSacramentIds.includes(sacramentId)),
+      )
+      const applicableDocumentItems = documentRequirements.filter((item) =>
+        item.sacramentIds.some((sacramentId) => studentSacramentIds.includes(sacramentId)),
+      )
+      const checkedChecklistIds = checklistProgressMap.get(student.id) ?? []
+      const deliveredDocumentIds = documentProgressMap.get(student.id) ?? []
 
       return {
         id: student.id,
@@ -439,6 +498,14 @@ export async function getGroupDetail(user: User, groupId: string) {
         absenceCount: studentAttendance.filter((entry) => entry.status === 'AUSENTE').length,
         lastAttendanceDate: studentAttendance[0]?.date,
         lastAttendanceStatus: studentAttendance[0]?.status,
+        checklistProgressPercent:
+          applicableChecklistItems.length === 0
+            ? 0
+            : Math.round((applicableChecklistItems.filter((item) => checkedChecklistIds.includes(item.id)).length / applicableChecklistItems.length) * 100),
+        documentProgressPercent:
+          applicableDocumentItems.length === 0
+            ? 0
+            : Math.round((applicableDocumentItems.filter((item) => deliveredDocumentIds.includes(item.id)).length / applicableDocumentItems.length) * 100),
       }
     })
     .sort((left, right) => left.fullName.localeCompare(right.fullName, 'es'))
@@ -523,6 +590,7 @@ export async function setGroupActive(groupId: string, active: boolean) {
 
   await putDocument('groups', {
     ...group,
+    year: group.year ?? getCurrentYear(),
     active,
     updatedAt: new Date().toISOString(),
     syncStatus: 'synced',

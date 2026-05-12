@@ -2,11 +2,11 @@ import { listDocuments } from '@/database/firestore-repository'
 import { getAccessibleGroupIds } from '@/services/access-service'
 import type { AlertItem, User } from '@/types/models'
 
-export async function getAlertItems(user: User) {
-  const accessibleGroupIds = await getAccessibleGroupIds(user)
+export async function getAlertItems(user: User, yearFilter?: number) {
+  const accessibleGroupIds = await getAccessibleGroupIds(user, yearFilter)
   const [groups, userGroups, students, guardians, studentSacraments, attendanceSessions, attendanceRecords, activities, activityGrades] =
     await Promise.all([
-      listDocuments<{ id: string; name: string }>('groups'),
+      listDocuments<{ id: string; name: string; year: number }>('groups'),
       listDocuments<{ id: string; groupId: string }>('userGroups'),
       listDocuments<{ id: string; firstName: string; lastName: string; groupId: string; active: boolean }>('students'),
       listDocuments<{ id: string; studentId: string }>('guardians'),
@@ -18,7 +18,7 @@ export async function getAlertItems(user: User) {
     ])
 
   const visibleGroups = groups.filter(
-    (group) => user.role === 'ADMIN' || accessibleGroupIds.includes(group.id),
+    (group) => (user.role === 'ADMIN' || accessibleGroupIds.includes(group.id)) && (yearFilter ? group.year === yearFilter : true),
   )
   const visibleGroupIds = visibleGroups.map((group) => group.id)
   const visibleStudents = students.filter((student) => visibleGroupIds.includes(student.groupId) && student.active)
@@ -31,7 +31,7 @@ export async function getAlertItems(user: User) {
         alerts.push({
           id: `group-without-catechist-${group.id}`,
           title: 'Grupo sin catequista',
-          description: `${group.name} aun no tiene catequista asignado.`,
+          description: `${group.name} aún no tiene catequista asignado.`,
           severity: 'high',
           groupId: group.id,
           groupName: group.name,
@@ -106,7 +106,7 @@ export async function getAlertItems(user: User) {
         alerts.push({
           id: `pending-activity-${activity.id}`,
           title: 'Actividad pendiente',
-          description: `${activity.title} aun no tiene notas completas.`,
+          description: `${activity.title} aún no tiene notas completas.`,
           severity: 'low',
           groupId: group.id,
           groupName: group.name,

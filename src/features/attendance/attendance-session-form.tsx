@@ -14,6 +14,7 @@ import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
+import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useBackNavigation } from '@/hooks/use-back-navigation'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,7 @@ import { getAttendanceSessionDetail, getStudentsByGroup, saveAttendanceSession }
 import type { AttendanceStatus, User } from '@/types/models'
 import { formatDate, getTodayInputValue } from '@/utils/date'
 import { cn } from '@/utils/cn'
+import { formatYearLabel } from '@/utils/year'
 
 type AttendanceSessionFormProps = {
   user: User
@@ -72,6 +74,7 @@ export function AttendanceSessionForm({
 }: AttendanceSessionFormProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { activeYear } = useActiveYear()
   const [selectedGroupId, setSelectedGroupId] = useState(initialGroupId ?? '')
   const [selectedDate, setSelectedDate] = useState(initialDate ?? getTodayInputValue())
   const [records, setRecords] = useState<AttendanceState>({})
@@ -83,8 +86,8 @@ export function AttendanceSessionForm({
   const [expandedObservationStudentId, setExpandedObservationStudentId] = useState<string | null>(null)
 
   const { data: groupsData, loading: groupsLoading } = useAsyncData(
-    () => getAccessibleGroups(user),
-    [user.id, user.role],
+    () => getAccessibleGroups(user, activeYear ?? undefined),
+    [user.id, user.role, activeYear],
   )
   const { data: studentsData, loading: studentsLoading } = useAsyncData(
     async () => {
@@ -196,6 +199,8 @@ export function AttendanceSessionForm({
   const submitButtonLabel = saving
     ? `${isEditingSession ? 'Actualizando' : 'Guardando'} asistencia del ${formattedActionDate}`
     : `${isEditingSession ? 'Actualizar' : 'Guardar'} asistencia del ${formattedActionDate}`
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId)
+  const selectedGroupName = selectedGroup ? `${selectedGroup.name} · ${selectedGroup.year}` : undefined
 
   if (groupsLoading && !groupsData) {
     return <PageSkeleton variant="detail" />
@@ -240,6 +245,27 @@ export function AttendanceSessionForm({
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Grupo seleccionado</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{selectedGroupName ?? 'Sin grupo'}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Fecha</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{formattedActionDate}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Modo</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{isEditingSession ? 'Editar asistencia' : 'Nueva asistencia'}</p>
+          </div>
+        </AppCard>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <AppCard title={mode === 'edit' ? 'Editar asistencia' : 'Nueva asistencia'} description={mode === 'edit' ? 'Puedes actualizar la asistencia de los estudiantes. La fecha de esta asistencia no se puede cambiar.' : 'Elige el grupo, la fecha y registra la asistencia de los estudiantes.'}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -247,7 +273,7 @@ export function AttendanceSessionForm({
               label="Grupo"
               value={selectedGroupId}
               onValueChange={setSelectedGroupId}
-              options={groups.filter((group) => group.active).map((group) => ({ label: group.name, value: group.id }))}
+              options={groups.filter((group) => group.active).map((group) => ({ label: `${group.name} · ${group.year}`, value: group.id, description: formatYearLabel(group.year) }))}
             />
             <AppInput
               label="Fecha"
@@ -336,6 +362,23 @@ export function AttendanceSessionForm({
           </PrimaryButton>
         </div>
       </div>
+
+      <AppCard title="Como revisar la lista" description="Usa estos pasos para marcar mas rapido toda la jornada.">
+        <div className="grid gap-3 sm:grid-cols-3 text-sm text-muted-foreground">
+          <div className="rounded-[0.95rem] bg-secondary/35 px-4 py-4">
+            <p className="font-medium text-foreground">1. Busca si hace falta</p>
+            <p className="mt-1">Filtra por nombre cuando el grupo sea grande.</p>
+          </div>
+          <div className="rounded-[0.95rem] bg-secondary/35 px-4 py-4">
+            <p className="font-medium text-foreground">2. Marca el estado</p>
+            <p className="mt-1">Usa presente, ausente o justificado en cada alumno.</p>
+          </div>
+          <div className="rounded-[0.95rem] bg-secondary/35 px-4 py-4">
+            <p className="font-medium text-foreground">3. Agrega observacion</p>
+            <p className="mt-1">Solo cuando necesites dejar contexto para seguimiento.</p>
+          </div>
+        </div>
+      </AppCard>
 
       <div className="flex flex-wrap gap-2">
         {[

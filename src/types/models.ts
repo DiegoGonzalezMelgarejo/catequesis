@@ -1,7 +1,8 @@
 export const DEFAULT_PARISH_ID = 'parish-local-default'
+export const PLATFORM_PARISH_ID = 'platform-root'
 export const DEFAULT_SEED_VERSION = '1'
 
-export const ROLES = ['ADMIN', 'CATECHIST'] as const
+export const ROLES = ['SUPER_ADMIN', 'ADMIN', 'CATECHIST'] as const
 export type Role = (typeof ROLES)[number]
 
 export const ATTENDANCE_STATUSES = ['PRESENTE', 'AUSENTE', 'JUSTIFICADO'] as const
@@ -48,16 +49,32 @@ export interface User extends SyncMeta, TimestampedEntity {
   phone?: string
   email?: string
   active: boolean
+  mustChangePassword?: boolean
+  passwordUpdatedAt?: string
   searchTokens?: string[]
+}
+
+export interface Parish extends TimestampedEntity {
+  id: string
+  name: string
+  city?: string
+  active: boolean
 }
 
 export interface Group extends SyncMeta, TimestampedEntity {
   id: string
   name: string
+  year: number
   description?: string
   schedule?: string
   active: boolean
   searchTokens?: string[]
+}
+
+export interface AnnualPeriod extends SyncMeta, TimestampedEntity {
+  id: string
+  year: number
+  observations?: string
 }
 
 export interface UserGroup extends SyncMeta, TimestampedEntity {
@@ -71,6 +88,7 @@ export interface Student extends SyncMeta, TimestampedEntity {
   firstName: string
   lastName: string
   birthDate: string
+  year: number
   observations?: string
   active: boolean
   groupId: string
@@ -87,6 +105,41 @@ export interface StudentSacrament extends SyncMeta, TimestampedEntity {
   id: string
   studentId: string
   sacramentId: string
+}
+
+export interface ChecklistItem {
+  id: string
+  label: string
+}
+
+export interface SacramentChecklist extends SyncMeta, TimestampedEntity {
+  id: string
+  sacramentId: string
+  items: ChecklistItem[]
+}
+
+export interface ChecklistCatalogItem extends SyncMeta, TimestampedEntity {
+  id: string
+  label: string
+  sacramentIds: string[]
+}
+
+export interface DocumentRequirement extends SyncMeta, TimestampedEntity {
+  id: string
+  label: string
+  sacramentIds: string[]
+}
+
+export interface StudentDocumentProgress extends SyncMeta, TimestampedEntity {
+  id: string
+  studentId: string
+  deliveredRequirementIds: string[]
+}
+
+export interface StudentChecklistProgress extends SyncMeta, TimestampedEntity {
+  id: string
+  studentId: string
+  checkedItemIds: string[]
 }
 
 export interface Guardian extends SyncMeta, TimestampedEntity {

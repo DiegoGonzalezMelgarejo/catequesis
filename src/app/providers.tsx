@@ -1,6 +1,7 @@
 import { Toaster } from 'sonner'
 
 import { AuthProvider } from '@/store/auth-context'
+import { ActiveYearProvider } from '@/store/active-year-context'
 
 type AppProvidersProps = {
   children: React.ReactNode
@@ -9,8 +10,10 @@ type AppProvidersProps = {
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <AuthProvider>
-      {children}
-      <Toaster richColors position="top-center" />
+      <ActiveYearProvider>
+        {children}
+        <Toaster richColors position="top-center" />
+      </ActiveYearProvider>
     </AuthProvider>
   )
 }

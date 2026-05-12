@@ -1,5 +1,7 @@
-import { BookHeart, CalendarRange, GraduationCap, ShieldAlert, UserRound, Users } from 'lucide-react'
+import { BookCheck, BookHeart, CalendarRange, FileCheck, GraduationCap, ShieldAlert, UserRound, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { AppCard } from '@/components/app/app-card'
 import { Badge } from '@/components/app/badge'
@@ -7,13 +9,18 @@ import { CollapsibleSection } from '@/components/app/collapsible-section'
 import { EmptyState } from '@/components/app/empty-state'
 import { EntityAvatar } from '@/components/app/entity-avatar'
 import { PageSkeleton } from '@/components/app/page-skeleton'
+import { PrimaryButton } from '@/components/app/primary-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/app/tabs'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useAuth } from '@/hooks/use-auth'
 import { useBackNavigation } from '@/hooks/use-back-navigation'
+import { getStudentDocumentRequirements, saveStudentDocumentRequirements, type StudentDocumentItem } from '@/services/document-requirement-service'
+import { getStudentChecklist, saveStudentChecklist, type StudentChecklistItem } from '@/services/checklist-service'
 import { getStudentHistory } from '@/services/student-service'
 import { formatDate } from '@/utils/date'
+import { formatYearLabel } from '@/utils/year'
 
 const attendanceBadgeVariant = {
   PRESENTE: 'success',
@@ -29,6 +36,26 @@ export function StudentHistoryPage() {
     () => (user && studentId ? getStudentHistory(user, studentId) : Promise.resolve(null)),
     [user?.id, studentId],
   )
+  const { data: checklistData, loading: checklistLoading } = useAsyncData(
+    () => (user && studentId ? getStudentChecklist(user, studentId) : Promise.resolve(null)),
+    [user?.id, user?.role, studentId],
+  )
+  const { data: documentData, loading: documentLoading } = useAsyncData(
+    () => (user && studentId ? getStudentDocumentRequirements(user, studentId) : Promise.resolve(null)),
+    [user?.id, user?.role, studentId],
+  )
+  const [editableChecklistItems, setEditableChecklistItems] = useState<StudentChecklistItem[]>([])
+  const [editableDocumentItems, setEditableDocumentItems] = useState<StudentDocumentItem[]>([])
+  const [savingChecklist, setSavingChecklist] = useState(false)
+  const [savingDocuments, setSavingDocuments] = useState(false)
+
+  useEffect(() => {
+    setEditableChecklistItems(checklistData?.items ?? [])
+  }, [checklistData])
+
+  useEffect(() => {
+    setEditableDocumentItems(documentData?.items ?? [])
+  }, [documentData])
 
   if (!user || !studentId) {
     return null
@@ -69,8 +96,9 @@ export function StudentHistoryPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{history.student.fullName}</h2>
                 <Badge variant="secondary">{history.student.groupName}</Badge>
+                <Badge variant="outline">{formatYearLabel(history.student.year)}</Badge>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground sm:text-sm">{history.student.age} años • Ficha pastoral del alumno</p>
+              <p className="mt-2 text-xs text-muted-foreground sm:text-sm">{history.student.age != null ? `${history.student.age} años • ` : ''}Ficha pastoral del alumno</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -78,21 +106,6 @@ export function StudentHistoryPage() {
               <SummaryCard title="Presentes" value={history.attendanceSummary.presentes} icon={CalendarRange} />
               <SummaryCard title="Ausentes" value={history.attendanceSummary.ausentes} icon={ShieldAlert} />
               <SummaryCard title="Sacramentos" value={history.sacraments.length} icon={BookHeart} />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-[0.95rem] bg-secondary/45 p-3 text-center text-xs sm:p-4 sm:text-sm">
-                <p className="text-muted-foreground">Acudientes</p>
-                <p className="mt-1 font-medium text-foreground">{history.student.guardianCount}</p>
-              </div>
-              <div className="rounded-[0.95rem] bg-secondary/45 p-3 text-center text-xs sm:p-4 sm:text-sm">
-                <p className="text-muted-foreground">Sacramentos</p>
-                <p className="mt-1 font-medium text-foreground">{history.sacraments.length}</p>
-              </div>
-              <div className="rounded-[0.95rem] bg-secondary/45 p-3 text-center text-xs sm:p-4 sm:text-sm">
-                <p className="text-muted-foreground">Grupo</p>
-                <p className="mt-1 font-medium text-foreground">{history.student.groupName}</p>
-              </div>
             </div>
 
             <div className="rounded-[0.95rem] bg-secondary/35 p-3 text-sm text-muted-foreground sm:p-4">
@@ -104,69 +117,293 @@ export function StudentHistoryPage() {
         </div>
       </AppCard>
 
-      <div className="space-y-3">
-        <CollapsibleSection title="Acudientes" description="Contactos principales del alumno." defaultOpen>
-          <div className="space-y-3">
-            {history.guardians.length === 0 ? (
-              <EmptyState title="Sin acudientes" description="Este alumno no tiene acudientes registrados." icon={Users} />
-            ) : (
-              history.guardians.map((guardian) => (
-                <div key={guardian.id} className="rounded-[1rem] border border-border/70 bg-secondary/35 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium">{guardian.name}</p>
-                    {guardian.isPrimary ? <Badge variant="success">Principal</Badge> : null}
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{guardian.relationship}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{guardian.phone || guardian.whatsapp || guardian.email || 'Sin contacto'}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </CollapsibleSection>
+      <Tabs defaultValue="summary">
+        <TabsList>
+          <TabsTrigger value="summary">Resumen</TabsTrigger>
+          <TabsTrigger value="attendance">Asistencia</TabsTrigger>
+          <TabsTrigger value="activities">Actividades</TabsTrigger>
+          <TabsTrigger value="checklist">Checklist</TabsTrigger>
+          <TabsTrigger value="documents">Documentos</TabsTrigger>
+        </TabsList>
 
-        <CollapsibleSection title="Asistencia" description="Historial de participación del alumno.">
+        <TabsContent value="summary">
           <div className="space-y-3">
-            {history.attendance.length === 0 ? (
-              <EmptyState title="Sin asistencias" description="Aún no hay registros de asistencia." icon={CalendarRange} />
-            ) : (
-              history.attendance.map((entry, index) => (
-                <div key={`${entry.date}-${index}`} className="rounded-[1rem] border border-border/70 bg-white p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium">{formatDate(entry.date)}</p>
-                    <Badge variant={attendanceBadgeVariant[entry.status]}>
-                      {entry.status}
-                    </Badge>
-                  </div>
-                  {entry.observations ? <p className="mt-2 text-sm text-muted-foreground">{entry.observations}</p> : null}
-                </div>
-              ))
-            )}
-          </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection title="Actividades y notas" description="Seguimiento de evaluaciones, tareas y participación.">
-          <div className="space-y-3">
-            {history.activities.length === 0 ? (
-              <EmptyState title="Sin actividades" description="No hay actividades registradas para este grupo." icon={GraduationCap} />
-            ) : (
-              history.activities.map((activity) => (
-                <div key={activity.id} className="rounded-[1rem] border border-border/70 bg-secondary/35 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{activity.title}</p>
-                      <p className="text-sm text-muted-foreground">{formatDate(activity.date)} • {activity.type}</p>
+            <CollapsibleSection title="Acudientes" description="Contactos principales del alumno." defaultOpen>
+              <div className="space-y-3">
+                {history.guardians.length === 0 ? (
+                  <EmptyState title="Sin acudientes" description="Este alumno no tiene acudientes registrados." icon={Users} />
+                ) : (
+                  history.guardians.map((guardian) => (
+                    <div key={guardian.id} className="rounded-[1rem] border border-border/70 bg-secondary/35 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium">{guardian.name}</p>
+                        {guardian.isPrimary ? <Badge variant="success">Principal</Badge> : null}
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">{guardian.relationship}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{guardian.phone || guardian.whatsapp || guardian.email || 'Sin contacto'}</p>
                     </div>
-                    <Badge variant="secondary">
-                      {activity.grade != null ? `${activity.grade}/${activity.maxGrade}` : `Pendiente/${activity.maxGrade}`}
-                    </Badge>
-                  </div>
-                  {activity.observations ? <p className="mt-2 text-sm text-muted-foreground">{activity.observations}</p> : null}
+                  ))
+                )}
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Resumen pastoral" description="Datos clave para entender la situacion actual del alumno." defaultOpen>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[0.95rem] bg-secondary/45 p-4 text-sm">
+                  <p className="text-muted-foreground">Acudientes</p>
+                  <p className="mt-1 font-semibold text-foreground">{history.student.guardianCount}</p>
                 </div>
-              ))
-            )}
+                <div className="rounded-[0.95rem] bg-secondary/45 p-4 text-sm">
+                  <p className="text-muted-foreground">Sacramentos</p>
+                  <p className="mt-1 font-semibold text-foreground">{history.sacraments.length}</p>
+                </div>
+                <div className="rounded-[0.95rem] bg-secondary/45 p-4 text-sm">
+                  <p className="text-muted-foreground">Grupo</p>
+                  <p className="mt-1 font-semibold text-foreground">{history.student.groupName}</p>
+                </div>
+              </div>
+            </CollapsibleSection>
           </div>
-        </CollapsibleSection>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="attendance">
+          <CollapsibleSection title="Asistencia" description="Historial de participacion del alumno." defaultOpen>
+            <div className="space-y-3">
+              {history.attendance.length === 0 ? (
+                <EmptyState title="Sin asistencias" description="Aún no hay registros de asistencia." icon={CalendarRange} />
+              ) : (
+                history.attendance.map((entry, index) => (
+                  <div key={`${entry.date}-${index}`} className="rounded-[1rem] border border-border/70 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium">{formatDate(entry.date)}</p>
+                      <Badge variant={attendanceBadgeVariant[entry.status]}>
+                        {entry.status}
+                      </Badge>
+                    </div>
+                    {entry.observations ? <p className="mt-2 text-sm text-muted-foreground">{entry.observations}</p> : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </CollapsibleSection>
+        </TabsContent>
+
+        <TabsContent value="activities">
+          <CollapsibleSection title="Actividades y notas" description="Seguimiento de evaluaciones, tareas y participacion." defaultOpen>
+            <div className="space-y-3">
+              {history.activities.length === 0 ? (
+                <EmptyState title="Sin actividades" description="No hay actividades registradas para este grupo." icon={GraduationCap} />
+              ) : (
+                history.activities.map((activity) => (
+                  <div key={activity.id} className="rounded-[1rem] border border-border/70 bg-secondary/35 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{activity.title}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(activity.date)} • {activity.type}</p>
+                      </div>
+                      <Badge variant="secondary">
+                        {activity.grade != null ? `${activity.grade}/${activity.maxGrade}` : `Pendiente/${activity.maxGrade}`}
+                      </Badge>
+                    </div>
+                    {activity.observations ? <p className="mt-2 text-sm text-muted-foreground">{activity.observations}</p> : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </CollapsibleSection>
+        </TabsContent>
+
+        <TabsContent value="checklist">
+          <CollapsibleSection title="Checklist doctrinal" description="Oraciones y doctrina que el alumno debe saber según su sacramento." defaultOpen>
+          {checklistLoading ? (
+            <PageSkeleton variant="detail" />
+          ) : editableChecklistItems.length === 0 ? (
+            <EmptyState
+              title="Sin checklist"
+              description={user.role === 'ADMIN' ? 'Este alumno no tiene un checklist disponible. Revisa sus sacramentos o crea los puntos en el módulo de checklist doctrinal.' : 'Este alumno no tiene un checklist disponible para mostrar.'}
+              icon={BookCheck}
+              action={user.role === 'ADMIN' ? (
+                <SecondaryButton asChild>
+                  <Link to="/app/checklists">Abrir checklist doctrinal</Link>
+                </SecondaryButton>
+              ) : undefined}
+            />
+          ) : (
+            <AppCard
+              title="Checklist unificado"
+              description={`${checklistData?.checkedCount ?? 0} de ${checklistData?.totalCount ?? 0} puntos marcados.`}
+              actions={user.role === 'ADMIN' ? (
+                <PrimaryButton
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setSavingChecklist(true)
+                      await saveStudentChecklist(
+                        user,
+                        studentId,
+                        editableChecklistItems.filter((item) => item.checked).map((item) => item.id),
+                      )
+
+                      toast.success('Checklist guardado.')
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : 'No fue posible guardar el checklist.')
+                    } finally {
+                      setSavingChecklist(false)
+                    }
+                  }}
+                  disabled={savingChecklist}
+                >
+                  Guardar
+                </PrimaryButton>
+              ) : null}
+            >
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-foreground">Avance del checklist</span>
+                    <span className="text-muted-foreground">{checklistData?.progressPercent ?? 0}%</span>
+                  </div>
+                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${checklistData?.progressPercent ?? 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                {editableChecklistItems.map((item) => (
+                  <label key={item.id} className="flex items-start gap-3 rounded-[0.95rem] bg-secondary/35 px-3 py-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 size-4"
+                      checked={item.checked}
+                      disabled={user.role !== 'ADMIN'}
+                      onChange={(event) => {
+                        setEditableChecklistItems((current) =>
+                          current.map((entry) =>
+                            entry.id === item.id
+                              ? { ...entry, checked: event.target.checked }
+                              : entry,
+                          ),
+                        )
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <span className="leading-snug text-foreground">{item.label}</span>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {item.sacramentNames.length > 1 ? `Aplica para: ${item.sacramentNames.join(', ')}` : `Sacramento: ${item.sacramentNames[0]}`}
+                      </p>
+                      {item.sacramentNames.length > 1 ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Este punto se marca una sola vez y cuenta para todos esos sacramentos.
+                        </p>
+                      ) : null}
+                    </div>
+                  </label>
+                ))}
+                </div>
+              </div>
+            </AppCard>
+          )}
+          </CollapsibleSection>
+        </TabsContent>
+
+        <TabsContent value="documents">
+          <CollapsibleSection title="Documentos requisito" description="Documentos que el alumno debe entregar según sus sacramentos." defaultOpen>
+          {documentLoading ? (
+            <PageSkeleton variant="detail" />
+          ) : editableDocumentItems.length === 0 ? (
+            <EmptyState
+              title="Sin documentos"
+              description={user.role === 'ADMIN' ? 'Este alumno no tiene documentos requisito disponibles. Crea los documentos en el módulo de documentos requisito.' : 'Este alumno no tiene documentos requisito para mostrar.'}
+              icon={FileCheck}
+              action={user.role === 'ADMIN' ? (
+                <SecondaryButton asChild>
+                  <Link to="/app/documents">Abrir documentos requisito</Link>
+                </SecondaryButton>
+              ) : undefined}
+            />
+          ) : (
+            <AppCard
+              title="Documentos entregados"
+              description={`${documentData?.deliveredCount ?? 0} de ${documentData?.totalCount ?? 0} documentos entregados.`}
+              actions={user.role === 'ADMIN' ? (
+                <PrimaryButton
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      setSavingDocuments(true)
+                      await saveStudentDocumentRequirements(
+                        user,
+                        studentId,
+                        editableDocumentItems.filter((item) => item.delivered).map((item) => item.id),
+                      )
+                      toast.success('Documentos guardados.')
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : 'No fue posible guardar los documentos.')
+                    } finally {
+                      setSavingDocuments(false)
+                    }
+                  }}
+                  disabled={savingDocuments}
+                >
+                  Guardar
+                </PrimaryButton>
+              ) : null}
+            >
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-foreground">Avance de documentos</span>
+                    <span className="text-muted-foreground">{documentData?.progressPercent ?? 0}%</span>
+                  </div>
+                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${documentData?.progressPercent ?? 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {editableDocumentItems.map((item) => (
+                    <label key={item.id} className="flex items-start gap-3 rounded-[0.95rem] bg-secondary/35 px-3 py-3 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 size-4"
+                        checked={item.delivered}
+                        disabled={user.role !== 'ADMIN'}
+                        onChange={(event) => {
+                          setEditableDocumentItems((current) =>
+                            current.map((entry) =>
+                              entry.id === item.id
+                                ? { ...entry, delivered: event.target.checked }
+                                : entry,
+                            ),
+                          )
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <span className="leading-snug text-foreground">{item.label}</span>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {item.sacramentNames.length > 1 ? `Aplica para: ${item.sacramentNames.join(', ')}` : `Sacramento: ${item.sacramentNames[0]}`}
+                        </p>
+                        {item.sacramentNames.length > 1 ? (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Este documento se registra una sola vez y cuenta para todos esos sacramentos.
+                          </p>
+                        ) : null}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </AppCard>
+          )}
+          </CollapsibleSection>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

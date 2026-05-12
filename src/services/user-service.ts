@@ -13,15 +13,16 @@ import { notifyDataChanged } from '@/store/data-store'
 import type { Group, User } from '@/types/models'
 import { calculateAge } from '@/utils/date'
 import { createId, createLocalMeta } from '@/utils/entity'
+import { generateTemporaryPassword, hashPassword } from '@/utils/password'
 import { buildSearchTokens, normalizeSearchText } from '@/utils/search'
 
 export type CatechistInput = {
   id?: string
   fullName: string
   username: string
-  password?: string
   phone?: string
   email?: string
+  password?: string
   groupIds?: string[]
 }
 
@@ -40,7 +41,7 @@ export type CatechistDetail = CatechistOverview & {
   students: Array<{
     id: string
     fullName: string
-    age: number
+    age: number | null
     groupId: string
     groupName: string
     active: boolean
@@ -206,19 +207,20 @@ export async function saveCatechist(input: CatechistInput) {
     throw new Error('No se encontro el catequista a editar.')
   }
 
-  if (!input.id && !input.password) {
-    throw new Error('La contrasena es obligatoria para nuevos catequistas.')
-  }
+  const assignedPassword = !input.id ? input.password?.trim() || generateTemporaryPassword() : null
+  const temporaryPassword = !input.id && !input.password?.trim() ? assignedPassword : null
 
   const user: User = {
     id: userId,
     fullName: input.fullName.trim(),
     username: normalizedUsername,
-    password: input.password?.trim() || existingUser?.password || '',
+    password: existingUser?.password || (assignedPassword ? await hashPassword(assignedPassword, userId) : ''),
     role: 'CATECHIST',
     phone: input.phone?.trim(),
     email: input.email?.trim(),
     active: existingUser?.active ?? true,
+    mustChangePassword: !input.id ? true : existingUser?.mustChangePassword,
+    passwordUpdatedAt: new Date().toISOString(),
     searchTokens: buildSearchTokens(input.fullName, normalizedUsername, input.email),
     ...createLocalMeta(existingUser?.createdAt, 'synced'),
   }
@@ -246,6 +248,8 @@ export async function saveCatechist(input: CatechistInput) {
   }
 
   notifyDataChanged()
+
+  return { user, temporaryPassword }
 }
 
 export async function setCatechistActive(userId: string, active: boolean) {

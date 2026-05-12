@@ -6,12 +6,12 @@ import { getStudentOverviews } from '@/services/student-service'
 import { getCatechistOverviews } from '@/services/user-service'
 import type { User } from '@/types/models'
 
-export async function getDashboardData(user: User) {
+export async function getDashboardData(user: User, yearFilter?: number) {
   const [groups, students, alerts, activities, attendanceSessions] = await Promise.all([
-    getGroupOverviews(user),
-    getStudentOverviews(user),
-    getAlertItems(user),
-    getActivityOverviews(user),
+    getGroupOverviews(user, yearFilter),
+    getStudentOverviews(user, yearFilter),
+    getAlertItems(user, yearFilter),
+    getActivityOverviews(user, undefined, yearFilter),
     listDocuments<{ id: string; groupId: string; date: string; updatedAt: string }>('attendanceSessions'),
   ])
 

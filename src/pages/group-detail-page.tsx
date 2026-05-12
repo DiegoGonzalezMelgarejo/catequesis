@@ -4,7 +4,6 @@ import {
   CalendarDays,
   ClipboardCheck,
   Download,
-  Eye,
   Layers3,
   NotebookPen,
   Printer,
@@ -37,6 +36,7 @@ import {
   exportGroupReportPdf,
   printGroupReport,
 } from '@/utils/group-report'
+import { formatYearLabel } from '@/utils/year'
 
 export function GroupDetailPage() {
   const { user } = useAuth()
@@ -174,6 +174,15 @@ export function GroupDetailPage() {
     )
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+  const hasAttendanceToday = detail.lastAttendanceDate === today
+  const attendanceActionLabel = hasAttendanceToday ? 'Editar asistencia de hoy' : 'Tomar asistencia hoy'
+  const attendanceActionTo = hasAttendanceToday
+    ? `/app/attendance/session?groupId=${detail.id}&date=${today}&mode=edit`
+    : `/app/attendance/session?groupId=${detail.id}&mode=new`
+  const studentsWithPendingDocuments = detail.students.filter((student) => student.documentProgressPercent < 100).length
+  const studentsWithPendingChecklist = detail.students.filter((student) => student.checklistProgressPercent < 100).length
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
@@ -181,7 +190,7 @@ export function GroupDetailPage() {
           <Link to={backTo}>{backLabel}</Link>
         </SecondaryButton>
         <SecondaryButton asChild>
-          <Link to={`/app/attendance/session?groupId=${detail.id}&mode=new`} state={{ from: location.pathname + location.search, label: 'Volver al grupo' }}>Nueva toma de asistencia</Link>
+          <Link to={attendanceActionTo} state={{ from: location.pathname + location.search, label: 'Volver al grupo' }}>{attendanceActionLabel}</Link>
         </SecondaryButton>
         <SecondaryButton asChild>
           <Link to={`/app/activities?groupId=${detail.id}`} state={{ from: location.pathname + location.search, label: 'Volver al grupo' }}>Ver actividades</Link>
@@ -228,7 +237,7 @@ export function GroupDetailPage() {
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {detail.schedule || 'Sin horario definido'}
+                  {formatYearLabel(detail.year)} • {detail.schedule || 'Sin horario definido'}
                 </p>
                 <p className="mt-2 max-w-3xl text-xs text-muted-foreground sm:text-sm">
                   {detail.description || 'Sin descripción registrada para este grupo.'}
@@ -258,6 +267,27 @@ export function GroupDetailPage() {
         </div>
       </AppCard>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Pendientes de checklist</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{studentsWithPendingChecklist}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Pendientes de documentos</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{studentsWithPendingDocuments}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Ultima asistencia</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{detail.lastAttendanceDate ? formatDate(detail.lastAttendanceDate, 'dd MMM yyyy') : 'Sin registro'}</p>
+          </div>
+        </AppCard>
+      </div>
+
       <Tabs defaultValue="students">
         <TabsList>
           <TabsTrigger value="students">Lista de alumnos</TabsTrigger>
@@ -275,11 +305,16 @@ export function GroupDetailPage() {
             />
           ) : (
             <div className="space-y-4">
-              <SearchInput
-                value={studentSearch}
-                onChange={setStudentSearch}
-                placeholder="Buscar alumno o acudiente"
-              />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <SearchInput
+                  value={studentSearch}
+                  onChange={setStudentSearch}
+                  placeholder="Buscar alumno o acudiente"
+                />
+                <div className="rounded-[0.95rem] bg-secondary/35 px-3 py-2 text-sm text-muted-foreground">
+                  Vista unica enfocada en seguimiento diario.
+                </div>
+              </div>
               {filteredStudents.length === 0 ? (
                 <EmptyState
                   title="Sin coincidencias"
@@ -288,69 +323,39 @@ export function GroupDetailPage() {
                 />
               ) : (
                 <>
-                  <div className="grid gap-3 xl:grid-cols-2">
-                    {pagedStudents.map((student) => (
-                      <AppCard key={student.id} interactive>
-                        <div className="space-y-4">
-                           <div className="flex items-start gap-3 rounded-[0.95rem] bg-secondary/35 p-3.5">
-                            <EntityAvatar icon={UserRound} label={student.fullName} className="size-14 sm:size-16" />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-base font-semibold sm:text-lg">{student.fullName}</p>
-                                  <p className="text-xs text-muted-foreground sm:text-sm">{student.age} años</p>
+                    <AppCard title="Lista de alumnos" description="Vista simple para encontrar, seguir avances y abrir la ficha del alumno.">
+                      <div className="divide-y divide-border/70">
+                        {pagedStudents.map((student) => (
+                          <div key={student.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <EntityAvatar icon={UserRound} label={student.fullName} className="size-12" />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start gap-2">
+                                  <p className="truncate font-semibold">{student.fullName}</p>
+                                  <Badge variant={student.active ? 'success' : 'outline'} className="shrink-0">
+                                    {student.active ? 'Activo' : 'Inactivo'}
+                                  </Badge>
                                 </div>
-                                <Badge variant={student.active ? 'success' : 'outline'}>
-                                  {student.active ? 'Activo' : 'Inactivo'}
-                                </Badge>
+                                <p className="truncate text-sm text-muted-foreground">
+                                  {student.age != null ? `${student.age} años • ` : ''}Asistencia {student.attendanceRate.toFixed(0)}%
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  Acudiente: {student.primaryGuardianName || 'Sin registrar'}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  Checklist {student.checklistProgressPercent}% • Documentos {student.documentProgressPercent}%
+                                </p>
                               </div>
-                              <p className="mt-2 hidden text-sm text-muted-foreground sm:block">Toca el botón para abrir la ficha completa del alumno.</p>
                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-                             <div className="min-w-0 rounded-[0.95rem] bg-secondary/45 p-3 text-xs sm:p-4 sm:text-sm">
-                               <p className="text-muted-foreground">Acudiente principal</p>
-                               <p className="mt-1 break-words font-medium">
-                                 {student.primaryGuardianName || 'Sin acudiente'}
-                               </p>
-                               <p className="mt-1 break-words text-muted-foreground">
-                                 {student.primaryGuardianPhone || 'Sin contacto'}
-                               </p>
-                             </div>
-                             <div className="min-w-0 rounded-[0.95rem] bg-secondary/45 p-3 text-xs sm:p-4 sm:text-sm">
-                               <p className="text-muted-foreground">Asistencia</p>
-                               <p className="mt-1 font-medium">{student.attendanceRate.toFixed(0)}%</p>
-                               <p className="mt-1 break-words text-muted-foreground">
-                                 {student.absenceCount} faltas acumuladas
-                               </p>
-                             </div>
-                             <div className="min-w-0 rounded-[0.95rem] bg-secondary/45 p-3 text-xs sm:p-4 sm:text-sm">
-                               <p className="text-muted-foreground">Última asistencia</p>
-                               <p className="mt-1 break-words font-medium">
-                                 {student.lastAttendanceDate ? formatDate(student.lastAttendanceDate) : 'Sin registro'}
-                               </p>
-                               <p className="mt-1 break-words text-muted-foreground">
-                                 {student.sacramentCount} sacramentos • {student.guardianCount} acudientes
-                               </p>
-                             </div>
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <p className="max-w-xl break-words text-xs text-muted-foreground sm:text-sm">
-                              {student.observations || 'Sin observaciones registradas.'}
-                            </p>
                             <SecondaryButton asChild>
                               <Link to={`/app/students/${student.id}`} state={detailState}>
-                                <Eye className="size-4" />
-                                Ver alumno
+                                Abrir ficha
                               </Link>
                             </SecondaryButton>
                           </div>
-                        </div>
-                      </AppCard>
-                    ))}
-                  </div>
+                        ))}
+                      </div>
+                    </AppCard>
                   <PaginationControls
                     page={studentPage}
                     pageSize={20}
@@ -489,7 +494,7 @@ export function GroupDetailPage() {
                   size="sm"
                   onClick={async () => {
                     const result = await exportCsvFile(
-                      `matriz-notas-${detail.name.toLowerCase().replaceAll(' ', '-')}.csv`,
+                      `matriz-notas-${detail.year}-${detail.name.toLowerCase().replaceAll(' ', '-')}.csv`,
                       detail.gradesMatrix.map((row) => ({
                         alumno: row.studentName,
                         ...Object.fromEntries(
@@ -607,7 +612,7 @@ export function GroupDetailPage() {
                   size="sm"
                   onClick={async () => {
                     const result = await exportCsvFile(
-                      `matriz-asistencia-${detail.name.toLowerCase().replaceAll(' ', '-')}.csv`,
+                      `matriz-asistencia-${detail.year}-${detail.name.toLowerCase().replaceAll(' ', '-')}.csv`,
                       visibleAttendanceMatrix.map((row) => ({
                         alumno: row.studentName,
                         ...Object.fromEntries(

@@ -10,13 +10,16 @@ import { FormStepIndicator } from '@/components/app/form-step-indicator'
 import { Modal } from '@/components/app/modal'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
+import { useActiveYear } from '@/hooks/use-active-year'
 import { Button } from '@/components/ui/button'
 import { saveGroup } from '@/services/group-service'
 import type { SelectOption } from '@/types/models'
 import { cn } from '@/utils/cn'
+import { getCurrentYear } from '@/utils/year'
 
 const schema = z.object({
   name: z.string().min(3, 'Ingresa el nombre del grupo.'),
+  year: z.number().int().min(2020, 'Ingresa un año válido.'),
   schedule: z.string().optional(),
   description: z.string().optional(),
   catechistIds: z.array(z.string()),
@@ -27,6 +30,7 @@ type GroupFormValues = z.infer<typeof schema>
 export type EditableGroup = {
   id: string
   name: string
+  year: number
   schedule?: string
   description?: string
   catechistIds: string[]
@@ -40,11 +44,13 @@ type GroupFormProps = {
 }
 
 export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormProps) {
+  const { activeYear } = useActiveYear()
   const [currentStep, setCurrentStep] = useState(0)
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
+      year: activeYear ?? getCurrentYear(),
       schedule: '',
       description: '',
       catechistIds: [],
@@ -55,18 +61,19 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
     setCurrentStep(0)
     form.reset({
       name: group?.name ?? '',
+      year: group?.year ?? activeYear ?? getCurrentYear(),
       schedule: group?.schedule ?? '',
       description: group?.description ?? '',
       catechistIds: group?.catechistIds ?? [],
     })
-  }, [form, group, open])
+  }, [activeYear, form, group, open])
 
   const selectedCatechists = form.watch('catechistIds')
   const steps = ['Datos', 'Catequistas']
   const submitForm = form.handleSubmit(onSubmit)
 
   async function goNextStep() {
-    const valid = await form.trigger(['name'])
+    const valid = await form.trigger(['name', 'year'])
     if (!valid) {
       return
     }
@@ -79,6 +86,8 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
       await saveGroup({
         id: group?.id,
         name: values.name,
+        year: values.year,
+        activeYear: activeYear ?? undefined,
         schedule: values.schedule,
         description: values.description,
         catechistIds: values.catechistIds,
@@ -95,6 +104,7 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
     <Modal
       open={open}
       onOpenChange={onOpenChange}
+      variant="full-screen"
       title={group ? 'Editar grupo' : 'Nuevo grupo'}
       description="Configura el grupo y define uno o varios catequistas responsables."
       footer={
@@ -120,30 +130,31 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
         </>
       }
     >
-      <form id="group-form" className="space-y-5" onSubmit={submitForm}>
+      <form id="group-form" className="mx-auto max-w-5xl space-y-5 lg:space-y-6" onSubmit={submitForm}>
         <FormStepIndicator steps={steps} currentStep={currentStep} onStepChange={setCurrentStep} />
 
         {currentStep === 0 ? (
-          <div className="rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
-            <div className="mb-4">
+          <div className="rounded-[1rem] bg-secondary/35 p-4 sm:p-5 lg:p-6">
+            <div className="mb-4 lg:mb-5">
               <p className="font-medium">Información del grupo</p>
-              <p className="text-sm text-muted-foreground">Define el nombre, horario y una referencia rápida para el equipo.</p>
+              <p className="text-sm text-muted-foreground">Define el nombre, el año de corte, el horario y una referencia rapida para el equipo.</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <AppInput label="Nombre del grupo" error={form.formState.errors.name?.message} {...form.register('name')} />
+              <AppInput label="Año de corte" type="number" min="2020" max="2100" disabled value={String(activeYear ?? form.watch('year'))} error={form.formState.errors.year?.message} {...form.register('year', { valueAsNumber: true })} />
               <AppInput label="Horario" hint="Ej. Sábados 9:00 AM" {...form.register('schedule')} />
-              <div className="sm:col-span-2">
+              <div className="md:col-span-2 xl:col-span-3">
                 <AppInput label="Descripción" hint="Opcional. Úsala para recordar etapa, salón o enfoque del grupo." {...form.register('description')} />
               </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-3 rounded-[1rem] bg-secondary/35 p-4 sm:p-5">
+          <div className="space-y-4 rounded-[1rem] bg-secondary/35 p-4 sm:p-5 lg:p-6">
             <div>
               <p className="text-sm font-medium">Catequistas asignados</p>
               <p className="text-sm text-muted-foreground">Puedes asociar uno o varios catequistas.</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {catechists.map((catechist) => {
                 const selected = selectedCatechists.includes(catechist.value)
 
@@ -152,7 +163,7 @@ export function GroupForm({ open, onOpenChange, group, catechists }: GroupFormPr
                     key={catechist.value}
                     type="button"
                     variant={selected ? 'default' : 'outline'}
-                    className={cn('justify-start rounded-[0.9rem]', !selected && 'bg-white')}
+                    className={cn('min-h-12 justify-start rounded-[0.9rem] text-left', !selected && 'bg-white')}
                     onClick={() => {
                       const nextValue = selected
                         ? selectedCatechists.filter((id) => id !== catechist.value)

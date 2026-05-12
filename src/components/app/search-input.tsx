@@ -6,9 +6,10 @@ type SearchInputProps = {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  ariaLabel?: string
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Buscar...' }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder = 'Buscar...', ariaLabel }: SearchInputProps) {
   return (
     <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -16,6 +17,9 @@ export function SearchInput({ value, onChange, placeholder = 'Buscar...' }: Sear
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        aria-label={ariaLabel ?? placeholder}
+        autoComplete="off"
+        enterKeyHint="search"
         className="pl-10"
       />
     </div>

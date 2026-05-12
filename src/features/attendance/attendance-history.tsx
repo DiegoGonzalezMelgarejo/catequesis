@@ -10,11 +10,13 @@ import { PaginationControls } from '@/components/app/pagination-controls'
 import { PrimaryButton } from '@/components/app/primary-button'
 import { SearchInput } from '@/components/app/search-input'
 import { SecondaryButton } from '@/components/app/secondary-button'
+import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { getAccessibleGroups } from '@/services/access-service'
 import { getAttendanceHistoryByGroup } from '@/services/attendance-service'
 import type { User } from '@/types/models'
 import { formatDate } from '@/utils/date'
+import { formatYearLabel } from '@/utils/year'
 
 type AttendanceHistoryProps = {
   user: User
@@ -24,13 +26,14 @@ type AttendanceHistoryProps = {
 export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { activeYear } = useActiveYear()
   const [selectedGroupId, setSelectedGroupId] = useState(initialGroupId ?? '')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
   const { data: groupsData, loading: groupsLoading } = useAsyncData(
-    () => getAccessibleGroups(user),
-    [user.id, user.role],
+    () => getAccessibleGroups(user, activeYear ?? undefined),
+    [user.id, user.role, activeYear],
   )
   const { data: historyData, loading: historyLoading } = useAsyncData(
     () => (selectedGroupId ? getAttendanceHistoryByGroup(selectedGroupId) : Promise.resolve([])),
@@ -70,6 +73,9 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
     () => filteredHistory.slice((page - 1) * 20, page * 20),
     [filteredHistory, page],
   )
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId)
+  const selectedGroupName = selectedGroup ? `${selectedGroup.name} · ${selectedGroup.year}` : undefined
+  const latestSession = history[0]
 
   if (groupsLoading && !groupsData) {
     return <PageSkeleton variant="detail" />
@@ -77,13 +83,34 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Grupo actual</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{selectedGroupName ?? 'Sin grupo'}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Jornadas registradas</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{history.length}</p>
+          </div>
+        </AppCard>
+        <AppCard>
+          <div>
+            <p className="text-sm text-muted-foreground">Ultima jornada</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{latestSession ? formatDate(latestSession.date, 'dd MMM yyyy') : 'Sin registro'}</p>
+          </div>
+        </AppCard>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <AppCard title="Histórico de asistencia" description="Consulta todas las fechas registradas del grupo y abre una toma existente para editarla.">
           <AppSelect
             label="Grupo"
             value={selectedGroupId}
             onValueChange={setSelectedGroupId}
-            options={groups.filter((group) => group.active).map((group) => ({ label: group.name, value: group.id }))}
+            options={groups.filter((group) => group.active).map((group) => ({ label: `${group.name} · ${group.year}`, value: group.id, description: formatYearLabel(group.year) }))}
           />
         </AppCard>
 
@@ -107,10 +134,10 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
       {historyLoading ? (
         <PageSkeleton variant="detail" />
       ) : filteredHistory.length === 0 ? (
-        <EmptyState
-          title="Sin historial"
-          description="Aún no hay fechas registradas para este grupo o no coinciden con la búsqueda."
-          icon={History}
+          <EmptyState
+            title="Sin historial"
+            description="Todavia no hay jornadas registradas para este grupo o la busqueda no encontro coincidencias."
+            icon={History}
           action={
               <PrimaryButton
                 onClick={() => navigate(`/app/attendance/session?groupId=${selectedGroupId}&mode=new`, { state: { from: location.pathname + location.search, label: 'Volver al histórico' } })}
@@ -122,16 +149,18 @@ export function AttendanceHistory({ user, initialGroupId }: AttendanceHistoryPro
         />
       ) : (
         <div className="space-y-4">
-          <AppCard title="Fechas registradas" description="Listado corto para abrir y editar una asistencia existente.">
+          <AppCard title="Fechas registradas" description="Revisa primero el resumen del dia y luego abre la toma para editarla si hace falta.">
             <div className="divide-y divide-border/70">
               {pagedHistory.map((session) => (
-                <div key={session.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-start justify-between gap-3">
+                <div key={session.id} className="py-4 first:pt-0 last:pb-0">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="font-semibold">{formatDate(session.date, 'dd MMM yyyy')}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {session.counts.presentes} presentes • {session.counts.ausentes} ausentes • {session.counts.justificados} justificados
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span className="rounded-full bg-secondary px-3 py-1">{session.counts.presentes} presentes</span>
+                        <span className="rounded-full bg-secondary px-3 py-1">{session.counts.ausentes} ausentes</span>
+                        <span className="rounded-full bg-secondary px-3 py-1">{session.counts.justificados} justificados</span>
+                      </div>
                       {session.notes ? <p className="mt-1 text-xs text-muted-foreground">{session.notes}</p> : null}
                     </div>
                     <SecondaryButton

@@ -1,7 +1,7 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
 
-import { initializeDatabase } from '@/database/seed'
-import { clearSession, loginUser, restoreSession, syncSessionUser } from '@/services/auth-service'
+import { ensureDatabaseInitialized } from '@/database/seed'
+import { clearSession, loginUser, restoreSession, syncSessionUser, updateUserPassword } from '@/services/auth-service'
 import type { User } from '@/types/models'
 
 type AuthContextValue = {
@@ -10,6 +10,7 @@ type AuthContextValue = {
   login: (username: string, password: string) => Promise<boolean>
   logout: () => void
   refreshUser: () => Promise<void>
+  changePassword: (nextPassword: string) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
@@ -26,13 +27,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let active = true
 
     async function bootstrap() {
-      await initializeDatabase()
       const restoredUser = await restoreSession()
 
       if (active) {
         setUser(restoredUser)
         setLoading(false)
       }
+
+      void ensureDatabaseInitialized()
     }
 
     void bootstrap()
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       loading,
       login: async (username, password) => {
+        await ensureDatabaseInitialized()
         const authenticatedUser = await loginUser(username, password)
         setUser(authenticatedUser)
         return Boolean(authenticatedUser)
@@ -62,6 +65,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         const refreshedUser = await syncSessionUser(user.id)
         setUser(refreshedUser)
+      },
+      changePassword: async (nextPassword) => {
+        if (!user) {
+          throw new Error('No hay una sesión activa.')
+        }
+
+        const updatedUser = await updateUserPassword(user.id, nextPassword)
+        setUser(updatedUser)
       },
     }),
     [loading, user],

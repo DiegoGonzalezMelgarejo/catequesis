@@ -140,7 +140,7 @@ export function CatechistDetailPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{student.fullName}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{student.groupName} • {student.age} años</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{student.groupName}{student.age != null ? ` • ${student.age} años` : ''}</p>
                     </div>
                     <Badge variant={student.active ? 'success' : 'outline'}>{student.active ? 'Activo' : 'Inactivo'}</Badge>
                   </div>

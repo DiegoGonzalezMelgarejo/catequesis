@@ -25,7 +25,7 @@ export function AppSelect({
         id={selectId}
         value={value ?? ''}
         onChange={(event) => onValueChange(event.target.value)}
-        className="h-11 w-full rounded-[0.875rem] border border-input bg-white px-4 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-11 w-full rounded-[0.875rem] border border-input bg-white px-4 py-2 text-sm outline-none transition focus-visible:border-primary/30 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (

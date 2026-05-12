@@ -158,7 +158,7 @@ export async function exportGroupReportPdf(detail: GroupDetail) {
     headStyles: { fillColor: [109, 94, 252] },
   })
 
-  pdf.save(`reporte-${detail.name.toLowerCase().replaceAll(' ', '-')}.pdf`)
+  pdf.save(`reporte-${detail.year}-${detail.name.toLowerCase().replaceAll(' ', '-')}.pdf`)
 }
 
 export async function exportGradesMatrixPdf(
@@ -189,7 +189,7 @@ export async function exportGradesMatrixPdf(
     theme: 'grid',
   })
 
-  pdf.save(`matriz-notas-${detail.name.toLowerCase().replaceAll(' ', '-')}.pdf`)
+  pdf.save(`matriz-notas-${detail.year}-${detail.name.toLowerCase().replaceAll(' ', '-')}.pdf`)
 }
 
 export async function exportAttendanceMatrixPdf(
@@ -218,5 +218,5 @@ export async function exportAttendanceMatrixPdf(
     theme: 'grid',
   })
 
-  pdf.save(`matriz-asistencia-${detail.name.toLowerCase().replaceAll(' ', '-')}.pdf`)
+  pdf.save(`matriz-asistencia-${detail.year}-${detail.name.toLowerCase().replaceAll(' ', '-')}.pdf`)
 }
