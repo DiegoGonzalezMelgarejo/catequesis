@@ -12,6 +12,7 @@ import { formatYearLabel, getCurrentYear } from '@/utils/year'
 type YearManagementPanelProps = {
   activeYear: number | null
   availableYears: number[]
+  loading?: boolean
   onSelectYear: (year: number) => void
   onCreateYear: (input: { year: number; observations?: string }) => Promise<void>
   onDone?: () => void
@@ -20,7 +21,7 @@ type YearManagementPanelProps = {
   requiredYear?: number
 }
 
-export function YearManagementPanel({ activeYear, availableYears, onSelectYear, onCreateYear, onDone, requireCreation = false, canCreate = true, requiredYear }: YearManagementPanelProps) {
+export function YearManagementPanel({ activeYear, availableYears, loading = false, onSelectYear, onCreateYear, onDone, requireCreation = false, canCreate = true, requiredYear }: YearManagementPanelProps) {
   const fallbackYear = requiredYear ?? getCurrentYear()
   const missingRequiredYear = requiredYear != null && !availableYears.includes(requiredYear)
   const requiresCreationGate = requireCreation && (availableYears.length === 0 || missingRequiredYear)
@@ -90,13 +91,16 @@ export function YearManagementPanel({ activeYear, availableYears, onSelectYear, 
           <p className="text-sm text-muted-foreground">Para continuar debe existir el corte anual en curso: {formatYearLabel(requiredYear)}.</p>
         ) : null}
 
-        {availableYears.length > 0 ? (
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Consultando los periodos creados para esta parroquia...</p>
+        ) : availableYears.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {availableYears.map((year) => (
               <SecondaryButton
                 key={year}
                 type="button"
                 variant={year === activeYear ? 'default' : 'secondary'}
+                disabled={submitting}
                 onClick={() => {
                   onSelectYear(year)
                   onDone?.()

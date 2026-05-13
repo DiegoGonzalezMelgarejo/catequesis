@@ -37,7 +37,7 @@ npm run build
 ## Firebase
 
 - Proyecto configurado: `catequesis-db349`
-- La app usa Firestore con cache offline del SDK web.
+- La persistencia offline de Firestore esta desactivada temporalmente para simplificar el arranque y las consultas en PWA.
 - El seed inicial de usuarios se ejecuta manualmente con un script aparte.
 
 ### Seed de usuarios
@@ -106,9 +106,9 @@ firebase deploy --only firestore:rules
 ## Offline
 
 - Los datos viven en Firestore.
-- Firestore mantiene cache offline local en el navegador.
+- Firestore consulta directamente la red mientras la persistencia offline este desactivada.
 - La app precachea recursos con service worker.
-- Puede abrirse y usarse sin conexion.
+- Sin internet, la app no garantiza acceso a datos de Firestore mientras esta configuracion temporal siga activa.
 - La estructura ya esta conectada a Firebase Firestore.
 
 ## Estructura principal

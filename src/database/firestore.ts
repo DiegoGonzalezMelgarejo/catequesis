@@ -1,9 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentSingleTabManager,
-} from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBlNH_ciFhJu1I8YeEZOS5jIw0YbL54Euw',
@@ -16,12 +12,7 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig)
 
-export const firestore = initializeFirestore(firebaseApp, {
-  localCache: persistentLocalCache({
-    cacheSizeBytes: 40 * 1024 * 1024,
-    tabManager: persistentSingleTabManager({}),
-  }),
-})
+export const firestore = getFirestore(firebaseApp)
 
 export const firestoreCollections = {
   parishes: 'parishes',
