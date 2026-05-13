@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   ArrowUpRight,
   Bell,
@@ -25,6 +26,7 @@ import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useAuth } from '@/hooks/use-auth'
 import { getDashboardData } from '@/services/dashboard-service'
+import { finishBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { cn } from '@/utils/cn'
 import { formatDate } from '@/utils/date'
 import { formatYearLabel } from '@/utils/year'
@@ -50,6 +52,22 @@ export function DashboardPage() {
     () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getDashboardData(user, activeYear) : Promise.resolve(null)),
     [user?.id, user?.role, activeYear],
   )
+
+  useEffect(() => {
+    if (!user || user.role === 'SUPER_ADMIN') {
+      finishBootstrapStage()
+      return
+    }
+
+    if (activeYear && loading) {
+      setBootstrapStage('panel')
+      return
+    }
+
+    if (activeYear && dashboard) {
+      finishBootstrapStage()
+    }
+  }, [activeYear, dashboard, loading, user])
 
   if (user?.role === 'SUPER_ADMIN') {
     return <SuperAdminDashboard />

@@ -1,6 +1,7 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
 
 import { ensureDatabaseAuthReady, ensureDatabaseInitialized } from '@/database/seed'
+import { resetBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { clearSession, loginUser, restoreSession, syncSessionUser, updateUserPassword } from '@/services/auth-service'
 import type { User } from '@/types/models'
 
@@ -27,11 +28,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let active = true
 
     async function bootstrap() {
+      setBootstrapStage('session')
       const restoredUser = await restoreSession()
 
       if (active) {
         setUser(restoredUser)
         setLoading(false)
+      }
+
+      if (!restoredUser) {
+        resetBootstrapStage()
       }
 
       void ensureDatabaseInitialized()
@@ -49,14 +55,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       loading,
       login: async (username, password) => {
+        setBootstrapStage('session')
         await ensureDatabaseAuthReady()
         void ensureDatabaseInitialized()
         const authenticatedUser = await loginUser(username, password)
         setUser(authenticatedUser)
+        if (!authenticatedUser) {
+          resetBootstrapStage()
+        }
         return Boolean(authenticatedUser)
       },
       logout: () => {
         clearSession()
+        resetBootstrapStage()
         setUser(null)
       },
       refreshUser: async () => {

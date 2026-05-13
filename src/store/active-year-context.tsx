@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { useAuth } from '@/hooks/use-auth'
 import { createAnnualPeriod, getAvailableWorkYears } from '@/services/annual-period-service'
+import { setBootstrapStage } from '@/store/bootstrap-store'
 import { useDataStore } from '@/store/data-store'
 import { formatYearLabel } from '@/utils/year'
 
@@ -84,6 +85,7 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
     }
 
     setLoading(true)
+    setBootstrapStage('periods')
 
     try {
       const finalYears = await getAvailableWorkYears()
@@ -106,6 +108,7 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
       })
     } finally {
       setLoading(false)
+      setBootstrapStage('panel')
     }
   }
 

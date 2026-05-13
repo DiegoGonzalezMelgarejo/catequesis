@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CalendarDays, ClipboardPen, Edit3, NotebookPen } from 'lucide-react'
+import { CircleOff, ClipboardPen, Edit3, NotebookPen } from 'lucide-react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -189,6 +189,8 @@ export function ActivitiesPage() {
                       <SecondaryButton
                         type="button"
                         size="icon"
+                        aria-label={activity.active ? 'Inactivar actividad' : 'Reactivar actividad'}
+                        title={activity.active ? 'Inactivar actividad' : 'Reactivar actividad'}
                         onClick={async () => {
                           try {
                             await setActivityActive(activity.id, !activity.active)
@@ -198,7 +200,7 @@ export function ActivitiesPage() {
                           }
                         }}
                       >
-                        <CalendarDays className="size-4" />
+                        <CircleOff className="size-4" />
                       </SecondaryButton>
                     </div>
                   </div>
