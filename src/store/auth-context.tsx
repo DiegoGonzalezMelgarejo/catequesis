@@ -1,6 +1,7 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
 
 import { ensureDatabaseAuthReady, ensureDatabaseInitialized } from '@/database/seed'
+import { getAvailableWorkYears } from '@/services/annual-period-service'
 import { resetBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { clearSession, loginUser, restoreSession, syncSessionUser, updateUserPassword } from '@/services/auth-service'
 import type { User } from '@/types/models'
@@ -60,6 +61,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         void ensureDatabaseInitialized()
         const authenticatedUser = await loginUser(username, password)
         setUser(authenticatedUser)
+        if (authenticatedUser) {
+          void getAvailableWorkYears()
+        }
         if (!authenticatedUser) {
           resetBootstrapStage()
         }

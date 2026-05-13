@@ -6,12 +6,14 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, deps: unknown[]) {
   const revision = useDataStore((state) => state.revision)
   const [data, setData] = useState<T | undefined>(undefined)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     let active = true
 
     async function run() {
       setLoading(true)
+      setError(null)
 
       try {
         const nextData = await fetcher()
@@ -19,6 +21,11 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, deps: unknown[]) {
         if (active) {
           setData(nextData)
         }
+      } catch (nextError) {
+        if (active) {
+          setError(nextError instanceof Error ? nextError : new Error('No fue posible cargar los datos.'))
+        }
+        console.error(nextError)
       } finally {
         if (active) {
           setLoading(false)
@@ -33,5 +40,5 @@ export function useAsyncData<T>(fetcher: () => Promise<T>, deps: unknown[]) {
     }
   }, [revision, ...deps])
 
-  return { data, loading }
+  return { data, loading, error }
 }

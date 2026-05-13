@@ -7,6 +7,7 @@ import { sortYearsDescending } from '@/utils/year'
 
 export const MIN_WORK_YEAR = 2020
 export const MAX_WORK_YEAR = 2100
+const WORK_YEARS_CACHE_TTL_MS = 5 * 60 * 1000
 
 function normalizeYear(year: number) {
   if (!Number.isInteger(year) || year < MIN_WORK_YEAR || year > MAX_WORK_YEAR) {
@@ -17,7 +18,10 @@ function normalizeYear(year: number) {
 }
 
 export async function getAvailableWorkYears() {
-  const periods = await listDocuments<AnnualPeriod>('annualPeriods')
+  const periods = await listDocuments<AnnualPeriod>('annualPeriods', {
+    cacheKey: 'annual-periods',
+    maxAgeMs: WORK_YEARS_CACHE_TTL_MS,
+  })
   return sortYearsDescending(periods.map((period) => period.year))
 }
 

@@ -19,11 +19,9 @@ const stageCopy = {
 } as const
 
 export function BootstrapOverlay() {
-  const { isPwaMobile, isFirstPwaBoot, stage } = useBootstrapStore((state) => ({
-    isPwaMobile: state.isPwaMobile,
-    isFirstPwaBoot: state.isFirstPwaBoot,
-    stage: state.stage,
-  }))
+  const isPwaMobile = useBootstrapStore((state) => state.isPwaMobile)
+  const isFirstPwaBoot = useBootstrapStore((state) => state.isFirstPwaBoot)
+  const stage = useBootstrapStore((state) => state.stage)
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
 
   useEffect(() => {

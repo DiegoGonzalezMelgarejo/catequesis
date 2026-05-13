@@ -25,6 +25,7 @@ export function usePaginatedResource<TItem, TCursor>({
   const revision = useDataStore((state) => state.revision)
   const [items, setItems] = useState<TItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
   const [page, setPage] = useState(1)
   const [cursorHistory, setCursorHistory] = useState<Array<TCursor | null>>([null])
   const [nextCursor, setNextCursor] = useState<TCursor | null>(null)
@@ -42,6 +43,7 @@ export function usePaginatedResource<TItem, TCursor>({
 
     async function run() {
       setLoading(true)
+      setError(null)
 
       try {
         const response = (await fetchPage(cursorHistory[page - 1] ?? null, pageSize)) as PaginatedResponse<
@@ -56,6 +58,11 @@ export function usePaginatedResource<TItem, TCursor>({
         setItems(response.items)
         setNextCursor(response.nextCursor)
         setHasMore(response.hasMore)
+      } catch (nextError) {
+        if (active) {
+          setError(nextError instanceof Error ? nextError : new Error('No fue posible cargar la página.'))
+        }
+        console.error(nextError)
       } finally {
         if (active) {
           setLoading(false)
@@ -73,6 +80,7 @@ export function usePaginatedResource<TItem, TCursor>({
   return {
     items,
     loading,
+    error,
     page,
     pageSize,
     hasNext: hasMore,

@@ -19,21 +19,26 @@ function NavigationSection({ title, items }: { title: string; items: NavigationI
           const Icon = item.icon
 
           return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  'group flex items-center gap-3 rounded-[1rem] border border-transparent px-3 py-3 text-sm font-medium text-muted-foreground transition',
-                  'hover:border-primary/10 hover:bg-secondary/80 hover:text-foreground',
-                  isActive && 'border-primary/15 bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground',
-                )
-              }
-            >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-[0.9rem] bg-secondary/80 transition group-hover:bg-white/80">
-                <Icon className="size-4 shrink-0" />
-              </div>
-              <span className="min-w-0 flex-1">{item.label}</span>
+            <NavLink key={item.to} to={item.to}>
+              {({ isActive }) => (
+                <div
+                  className={cn(
+                    'group flex items-center gap-3 rounded-[1rem] border border-transparent px-3 py-3 text-sm font-medium text-muted-foreground transition',
+                    'hover:border-primary/10 hover:bg-secondary/80 hover:text-foreground',
+                    isActive && 'border-primary bg-primary text-primary-foreground shadow-[0_16px_36px_rgba(109,94,252,0.32)] ring-2 ring-primary/20',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'flex size-9 shrink-0 items-center justify-center rounded-[0.9rem] bg-secondary/80 transition group-hover:bg-white/80 group-hover:text-foreground',
+                      isActive && 'bg-white/18 text-primary-foreground',
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                  </div>
+                  <span className="min-w-0 flex-1">{item.label}</span>
+                </div>
+              )}
             </NavLink>
           )
         })}

@@ -23,10 +23,10 @@ export function MobileBottomNavigation({ items }: MobileBottomNavigationProps) {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] px-1 py-2.5 text-[10px] font-medium leading-tight text-muted-foreground transition sm:px-2 sm:text-[11px]',
+                  'flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] border border-transparent px-1 py-2.5 text-[10px] font-medium leading-tight text-muted-foreground transition sm:px-2 sm:text-[11px]',
                   item.highlight && 'mx-0.5 -mt-5 rounded-[1.2rem] bg-primary px-2.5 py-3.5 text-primary-foreground shadow-soft',
-                  isActive && !item.highlight && 'bg-secondary/80 text-foreground',
-                  isActive && item.highlight && 'bg-primary text-primary-foreground',
+                  isActive && !item.highlight && 'border-primary bg-primary text-primary-foreground shadow-[0_12px_28px_rgba(109,94,252,0.35)]',
+                  isActive && item.highlight && 'bg-primary text-primary-foreground ring-2 ring-primary/25 shadow-[0_14px_30px_rgba(109,94,252,0.4)]',
                 )
               }
             >
