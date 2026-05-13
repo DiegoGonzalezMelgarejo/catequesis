@@ -50,7 +50,15 @@ export function LoginPage() {
     <>
       {showFullScreenLoginLoader ? (
         <div className="fixed inset-0 z-50 bg-[linear-gradient(180deg,#f8faff_0%,#eef2ff_100%)]">
-          <LoadingState label="Iniciando sesión y preparando tu espacio de trabajo..." fullScreen />
+          <LoadingState
+            label="Iniciando sesión y preparando tu espacio de trabajo..."
+            fullScreen
+            details={[
+              'Validando tus credenciales.',
+              'Recuperando tu sesión segura.',
+              'Cargando los datos iniciales del panel.',
+            ]}
+          />
         </div>
       ) : null}
       <div className="flex min-h-svh items-center justify-center px-4 py-6 sm:px-6">

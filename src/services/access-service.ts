@@ -1,20 +1,27 @@
-import { getDocumentById, getDocumentsByField, listDocuments } from '@/database/firestore-repository'
+import { getDocumentById, getDocumentsByField, listDocuments, type ReadOptions } from '@/database/firestore-repository'
 import type { Group, Student, User, UserGroup } from '@/types/models'
 
 const ACCESS_CACHE_TTL_MS = 2 * 60 * 1000
 
-export async function getAccessibleGroupIds(user: User, yearFilter?: number) {
+function withAccessCache(options: ReadOptions | undefined, cacheKey: string): ReadOptions {
+  return {
+    cacheKey,
+    maxAgeMs: ACCESS_CACHE_TTL_MS,
+    ...options,
+  }
+}
+
+export async function getAccessibleGroupIds(user: User, yearFilter?: number, options?: ReadOptions) {
   if (user.role === 'ADMIN') {
     const groups = yearFilter
-      ? await getDocumentsByField<Group>('groups', 'year', yearFilter, { cacheKey: `access-admin-groups-year-${yearFilter}`, maxAgeMs: ACCESS_CACHE_TTL_MS })
-      : await listDocuments<Group>('groups', { cacheKey: 'access-admin-groups-all', maxAgeMs: ACCESS_CACHE_TTL_MS })
+      ? await getDocumentsByField<Group>('groups', 'year', yearFilter, withAccessCache(options, `access-admin-groups-year-${yearFilter}`))
+      : await listDocuments<Group>('groups', withAccessCache(options, 'access-admin-groups-all'))
 
     return groups.map((group) => group.id)
   }
 
   const assignments = await getDocumentsByField<UserGroup>('userGroups', 'userId', user.id, {
-    cacheKey: `access-user-groups-${user.id}`,
-    maxAgeMs: ACCESS_CACHE_TTL_MS,
+    ...withAccessCache(options, `access-user-groups-${user.id}`),
   })
   const allowedGroupIds = [...new Set(assignments.map((assignment) => assignment.groupId))]
 
@@ -23,19 +30,19 @@ export async function getAccessibleGroupIds(user: User, yearFilter?: number) {
   }
 
   const groups = yearFilter
-    ? await getDocumentsByField<Group>('groups', 'year', yearFilter, { cacheKey: `access-groups-year-${yearFilter}`, maxAgeMs: ACCESS_CACHE_TTL_MS })
-    : await listDocuments<Group>('groups', { cacheKey: 'access-groups-all', maxAgeMs: ACCESS_CACHE_TTL_MS })
+    ? await getDocumentsByField<Group>('groups', 'year', yearFilter, withAccessCache(options, `access-groups-year-${yearFilter}`))
+    : await listDocuments<Group>('groups', withAccessCache(options, 'access-groups-all'))
 
   return groups
     .filter((group) => allowedGroupIds.includes(group.id) && (yearFilter ? group.year === yearFilter : true))
     .map((group) => group.id)
 }
 
-export async function getAccessibleGroups(user: User, yearFilter?: number) {
+export async function getAccessibleGroups(user: User, yearFilter?: number, options?: ReadOptions) {
   if (user.role === 'ADMIN') {
     const groups = yearFilter
-      ? await getDocumentsByField<Group>('groups', 'year', yearFilter, { cacheKey: `nav-admin-groups-year-${yearFilter}`, maxAgeMs: ACCESS_CACHE_TTL_MS })
-      : await listDocuments<Group>('groups', { cacheKey: 'nav-admin-groups-all', maxAgeMs: ACCESS_CACHE_TTL_MS })
+      ? await getDocumentsByField<Group>('groups', 'year', yearFilter, withAccessCache(options, `nav-admin-groups-year-${yearFilter}`))
+      : await listDocuments<Group>('groups', withAccessCache(options, 'nav-admin-groups-all'))
 
     return groups
       .filter((group) => (yearFilter ? group.year === yearFilter : true))
@@ -44,9 +51,9 @@ export async function getAccessibleGroups(user: User, yearFilter?: number) {
 
   const [groups, groupIds] = await Promise.all([
     yearFilter
-      ? getDocumentsByField<Group>('groups', 'year', yearFilter, { cacheKey: `nav-groups-year-${yearFilter}`, maxAgeMs: ACCESS_CACHE_TTL_MS })
-      : listDocuments<Group>('groups', { cacheKey: 'nav-groups-all', maxAgeMs: ACCESS_CACHE_TTL_MS }),
-    getAccessibleGroupIds(user, yearFilter),
+      ? getDocumentsByField<Group>('groups', 'year', yearFilter, withAccessCache(options, `nav-groups-year-${yearFilter}`))
+      : listDocuments<Group>('groups', withAccessCache(options, 'nav-groups-all')),
+    getAccessibleGroupIds(user, yearFilter, options),
   ])
 
   return groups

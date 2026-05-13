@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   ArrowUpRight,
   Bell,
@@ -22,10 +22,20 @@ import { RefreshDataButton } from '@/components/app/refresh-data-button'
 import { SecondaryButton } from '@/components/app/secondary-button'
 import { SummaryCard } from '@/components/app/summary-card'
 import { YearManagementPanel } from '@/components/app/year-management-panel'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveYear } from '@/hooks/use-active-year'
 import { useAsyncData } from '@/hooks/use-async-data'
 import { useAuth } from '@/hooks/use-auth'
-import { getDashboardData } from '@/services/dashboard-service'
+import { getAccessibleGroups } from '@/services/access-service'
+import {
+  getDashboardActivitiesData,
+  getDashboardAlertsData,
+  getDashboardAttendanceData,
+  getDashboardSummaryData,
+  loadDashboardSnapshot,
+  saveDashboardSnapshot,
+  type DashboardSummary,
+} from '@/services/dashboard-service'
 import { finishBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { cn } from '@/utils/cn'
 import { formatDate } from '@/utils/date'
@@ -47,11 +57,59 @@ function getGreetingLabel() {
 
 export function DashboardPage() {
   const { user } = useAuth()
-  const { activeYear, availableYears, setActiveYear, createYearPeriod } = useActiveYear()
-  const { data: dashboard, loading } = useAsyncData(
-    () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getDashboardData(user, activeYear) : Promise.resolve(null)),
+  const { activeYear, availableYears, loading: yearLoading, setActiveYear, createYearPeriod } = useActiveYear()
+  const [snapshot, setSnapshot] = useState<ReturnType<typeof loadDashboardSnapshot>>(null)
+  const { data: groups, loading: groupsLoading } = useAsyncData(
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getAccessibleGroups(user, activeYear, { source: 'cache-first' }) : Promise.resolve(undefined)),
     [user?.id, user?.role, activeYear],
   )
+  const { data: summary, loading: summaryLoading } = useAsyncData(
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear && groups ? getDashboardSummaryData(user, groups, activeYear, { source: 'cache-first' }) : Promise.resolve(undefined)),
+    [user?.id, user?.role, activeYear, groups],
+  )
+  const { data: alerts, loading: alertsLoading } = useAsyncData(
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getDashboardAlertsData(user, activeYear) : Promise.resolve(undefined)),
+    [user?.id, user?.role, activeYear],
+  )
+  const { data: activities, loading: activitiesLoading } = useAsyncData(
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getDashboardActivitiesData(user, activeYear) : Promise.resolve(undefined)),
+    [user?.id, user?.role, activeYear],
+  )
+  const { data: latestAttendance, loading: attendanceLoading } = useAsyncData(
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear && groups ? getDashboardAttendanceData(groups, user, activeYear, { source: 'cache-first' }) : Promise.resolve(undefined)),
+    [user?.id, user?.role, activeYear, groups],
+  )
+
+  useEffect(() => {
+    if (!user || user.role === 'SUPER_ADMIN' || !activeYear) {
+      setSnapshot(null)
+      return
+    }
+
+    setSnapshot(loadDashboardSnapshot(user, activeYear))
+  }, [activeYear, user])
+
+  const summaryData = summary ?? snapshot?.summary
+  const alertsData = alerts ?? snapshot?.alerts
+  const activitiesData = activities ?? snapshot?.activities
+  const latestAttendanceData = latestAttendance ?? snapshot?.latestAttendance
+
+  useEffect(() => {
+    if (!user || user.role === 'SUPER_ADMIN' || !activeYear) {
+      return
+    }
+
+    if (!summaryData && !alertsData && !activitiesData && !latestAttendanceData) {
+      return
+    }
+
+    saveDashboardSnapshot(user, activeYear, {
+      summary: summaryData ?? undefined,
+      alerts: alertsData ?? undefined,
+      activities: activitiesData ?? undefined,
+      latestAttendance: latestAttendanceData,
+    })
+  }, [activeYear, activitiesData, alertsData, latestAttendanceData, summaryData, user])
 
   useEffect(() => {
     if (!user || user.role === 'SUPER_ADMIN') {
@@ -59,27 +117,55 @@ export function DashboardPage() {
       return
     }
 
-    if (activeYear && loading) {
+    if (activeYear && groupsLoading) {
       setBootstrapStage('panel')
       return
     }
 
-    if (activeYear && dashboard) {
+    if (activeYear && groups) {
       finishBootstrapStage()
     }
-  }, [activeYear, dashboard, loading, user])
+  }, [activeYear, groups, groupsLoading, user])
 
   if (user?.role === 'SUPER_ADMIN') {
     return <SuperAdminDashboard />
   }
 
-  if (!user || !activeYear || loading || !dashboard) {
+  if (!user || yearLoading || !activeYear) {
     return <PageSkeleton variant="dashboard" />
   }
 
-  return dashboard.role === 'ADMIN'
-    ? <AdminDashboard userName={user.fullName} dashboard={dashboard} activeYear={activeYear} availableYears={availableYears} setActiveYear={setActiveYear} createYearPeriod={createYearPeriod} />
-    : <CatechistDashboard userName={user.fullName} dashboard={dashboard} activeYear={activeYear} availableYears={availableYears} setActiveYear={setActiveYear} createYearPeriod={createYearPeriod} />
+  return user.role === 'ADMIN'
+    ? (
+      <AdminDashboard
+        userName={user.fullName}
+        activeYear={activeYear}
+        availableYears={availableYears}
+        setActiveYear={setActiveYear}
+        createYearPeriod={createYearPeriod}
+        groups={groups}
+        summary={summaryData?.role === 'ADMIN' ? summaryData : undefined}
+        alerts={alertsData}
+        activities={activitiesData}
+        latestAttendance={latestAttendanceData}
+        loading={{ groups: groupsLoading, summary: summaryLoading, alerts: alertsLoading, activities: activitiesLoading, attendance: attendanceLoading }}
+      />
+    )
+    : (
+      <CatechistDashboard
+        userName={user.fullName}
+        activeYear={activeYear}
+        availableYears={availableYears}
+        setActiveYear={setActiveYear}
+        createYearPeriod={createYearPeriod}
+        groups={groups}
+        summary={summaryData?.role === 'CATECHIST' ? summaryData : undefined}
+        alerts={alertsData}
+        activities={activitiesData}
+        latestAttendance={latestAttendanceData}
+        loading={{ groups: groupsLoading, summary: summaryLoading, alerts: alertsLoading, activities: activitiesLoading, attendance: attendanceLoading }}
+      />
+    )
 }
 
 function SuperAdminDashboard() {
@@ -143,7 +229,7 @@ function DashboardHero({
   activeYear: number
   primaryAction: { to: string; label: string }
   secondaryAction: { to: string; label: string }
-  highlights: Array<{ label: string; value: string | number; helper: string }>
+  highlights: Array<{ label: string; value: ReactNode; helper: string }>
 }) {
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(300px,0.8fr)] xl:items-stretch">
@@ -194,6 +280,24 @@ function DashboardHero({
   )
 }
 
+function HighlightValue({ value, loading }: { value: ReactNode; loading: boolean }) {
+  if (loading) {
+    return <Skeleton className="h-8 w-20 rounded-md" />
+  }
+
+  return <>{value}</>
+}
+
+function DashboardSectionSkeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: lines }).map((_, index) => (
+        <Skeleton key={index} className="h-20 rounded-[1rem]" />
+      ))}
+    </div>
+  )
+}
+
 function ActionLanding({
   title,
   description,
@@ -232,14 +336,16 @@ function WorkQueue({
   title,
   description,
   items,
+  loading,
 }: {
   title: string
   description: string
   items: Array<{ title: string; helper: string; to: string; tone?: 'default' | 'warning' }>
+  loading?: boolean
 }) {
   return (
     <AppCard title={title} description={description}>
-      {items.length === 0 ? (
+      {loading ? <DashboardSectionSkeleton /> : items.length === 0 ? (
         <div className="rounded-[1rem] bg-secondary/35 px-4 py-4 text-sm leading-6 text-muted-foreground">
           No hay elementos pendientes para revisar ahora.
         </div>
@@ -264,7 +370,34 @@ function WorkQueue({
   )
 }
 
-function AdminDashboard({ userName, dashboard, activeYear, availableYears, setActiveYear, createYearPeriod }: { userName: string; dashboard: Awaited<ReturnType<typeof getDashboardData>> & { role: 'ADMIN' }; activeYear: number; availableYears: number[]; setActiveYear: (year: number) => void; createYearPeriod: (input: { year: number; observations?: string }) => Promise<void> }) {
+function AdminDashboard({
+  userName,
+  activeYear,
+  availableYears,
+  setActiveYear,
+  createYearPeriod,
+  groups,
+  summary,
+  alerts,
+  loading,
+}: {
+  userName: string
+  activeYear: number
+  availableYears: number[]
+  setActiveYear: (year: number) => void
+  createYearPeriod: (input: { year: number; observations?: string }) => Promise<void>
+  groups: Awaited<ReturnType<typeof getAccessibleGroups>> | undefined
+  summary: Extract<DashboardSummary, { role: 'ADMIN' }> | undefined
+  alerts: Awaited<ReturnType<typeof getDashboardAlertsData>> | undefined
+  activities: Awaited<ReturnType<typeof getDashboardActivitiesData>> | undefined
+  latestAttendance: Awaited<ReturnType<typeof getDashboardAttendanceData>> | undefined
+  loading: { groups: boolean; summary: boolean; alerts: boolean; activities: boolean; attendance: boolean }
+}) {
+  const totalGroups = summary?.totalGroups ?? groups?.length ?? 0
+  const totalStudents = summary?.totalStudents ?? 0
+  const groupsWithoutCatechist = summary?.groupsWithoutCatechist ?? 0
+  const totalCatechists = summary?.totalCatechists ?? 0
+  const recentAlerts = alerts?.slice(0, 5) ?? []
   const todayItems = [
     { to: '/app/attendance', label: 'Tomar asistencia', helper: 'Abre la jornada y registra presentes.', featured: true },
     { to: '/app/groups', label: 'Revisar grupos', helper: 'Confirma horarios, asignaciones y estado.' },
@@ -272,17 +405,17 @@ function AdminDashboard({ userName, dashboard, activeYear, availableYears, setAc
   ]
 
   const pendingItems = [
-    dashboard.groupsWithoutCatechist > 0
+    groupsWithoutCatechist > 0
       ? {
-          title: `${dashboard.groupsWithoutCatechist} grupos sin catequista`,
+          title: `${groupsWithoutCatechist} grupos sin catequista`,
           helper: 'Conviene asignarlos antes del siguiente encuentro.',
           to: '/app/groups',
           tone: 'warning' as const,
         }
       : null,
-    dashboard.recentAlerts.length > 0
+    recentAlerts.length > 0
       ? {
-          title: `${dashboard.recentAlerts.length} alertas activas`,
+          title: `${recentAlerts.length} alertas activas`,
           helper: 'Revisa casos con riesgo o seguimiento pendiente.',
           to: '/app/alerts',
           tone: 'warning' as const,
@@ -310,17 +443,17 @@ function AdminDashboard({ userName, dashboard, activeYear, availableYears, setAc
         highlights={[
           {
             label: 'Cobertura actual',
-            value: `${dashboard.totalGroups - dashboard.groupsWithoutCatechist}/${dashboard.totalGroups}`,
+            value: <HighlightValue loading={loading.summary && !summary} value={`${Math.max(totalGroups - groupsWithoutCatechist, 0)}/${totalGroups}`} />,
             helper: 'Grupos con acompañamiento asignado para el año activo.',
           },
           {
             label: 'Alertas activas',
-            value: dashboard.recentAlerts.length,
+            value: <HighlightValue loading={loading.alerts && !alerts} value={recentAlerts.length} />,
             helper: 'Casos que conviene revisar antes del siguiente encuentro.',
           },
           {
             label: 'Base pastoral',
-            value: dashboard.totalStudents,
+            value: <HighlightValue loading={loading.summary && !summary} value={totalStudents} />,
             helper: 'Alumnos registrados dentro del periodo de trabajo actual.',
           },
         ]}
@@ -333,10 +466,10 @@ function AdminDashboard({ userName, dashboard, activeYear, availableYears, setAc
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard title="Catequistas" value={dashboard.totalCatechists} icon={Users} to="/app/catechists" />
-        <SummaryCard title="Grupos" value={dashboard.totalGroups} icon={Layers3} to="/app/groups" />
-        <SummaryCard title="Alumnos" value={dashboard.totalStudents} icon={BookUser} to="/app/students" />
-        <SummaryCard title="Sin catequista" value={dashboard.groupsWithoutCatechist} icon={TriangleAlert} to="/app/groups" />
+        <SummaryCard title="Catequistas" value={<HighlightValue loading={loading.summary && !summary} value={totalCatechists} />} icon={Users} to="/app/catechists" />
+        <SummaryCard title="Grupos" value={<HighlightValue loading={loading.groups && !groups} value={totalGroups} />} icon={Layers3} to="/app/groups" />
+        <SummaryCard title="Alumnos" value={<HighlightValue loading={loading.summary && !summary} value={totalStudents} />} icon={BookUser} to="/app/students" />
+        <SummaryCard title="Sin catequista" value={<HighlightValue loading={loading.summary && !summary} value={groupsWithoutCatechist} />} icon={TriangleAlert} to="/app/groups" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] xl:items-start">
@@ -345,6 +478,7 @@ function AdminDashboard({ userName, dashboard, activeYear, availableYears, setAc
             title="Pendientes prioritarios"
             description="Lo que conviene resolver para evitar atrasos en la operacion diaria."
             items={pendingItems}
+            loading={(loading.summary && !summary) || (loading.alerts && !alerts)}
           />
         </div>
 
@@ -373,7 +507,38 @@ function AdminDashboard({ userName, dashboard, activeYear, availableYears, setAc
   )
 }
 
-function CatechistDashboard({ userName, dashboard, activeYear, availableYears, setActiveYear, createYearPeriod }: { userName: string; dashboard: Awaited<ReturnType<typeof getDashboardData>> & { role: 'CATECHIST' }; activeYear: number; availableYears: number[]; setActiveYear: (year: number) => void; createYearPeriod: (input: { year: number; observations?: string }) => Promise<void> }) {
+function CatechistDashboard({
+  userName,
+  activeYear,
+  availableYears,
+  setActiveYear,
+  createYearPeriod,
+  groups,
+  summary,
+  alerts,
+  activities,
+  latestAttendance,
+  loading,
+}: {
+  userName: string
+  activeYear: number
+  availableYears: number[]
+  setActiveYear: (year: number) => void
+  createYearPeriod: (input: { year: number; observations?: string }) => Promise<void>
+  groups: Awaited<ReturnType<typeof getAccessibleGroups>> | undefined
+  summary: Extract<DashboardSummary, { role: 'CATECHIST' }> | undefined
+  alerts: Awaited<ReturnType<typeof getDashboardAlertsData>> | undefined
+  activities: Awaited<ReturnType<typeof getDashboardActivitiesData>> | undefined
+  latestAttendance: Awaited<ReturnType<typeof getDashboardAttendanceData>> | undefined
+  loading: { groups: boolean; summary: boolean; alerts: boolean; activities: boolean; attendance: boolean }
+}) {
+  const ownGroups = groups?.filter((group) => group.active) ?? []
+  const totalStudents = summary?.totalStudents ?? 0
+  const recentAlerts = alerts?.slice(0, 5) ?? []
+  const upcomingActivities = activities
+    ?.filter((activity) => activity.date >= new Date().toISOString().slice(0, 10))
+    .slice(0, 5)
+    ?? []
   const todayItems = [
     { to: '/app/attendance', label: 'Tomar asistencia', helper: 'Marca presentes, ausentes y justificados.', featured: true },
     { to: '/app/groups', label: 'Abrir mis grupos', helper: 'Entra rapido al grupo con el que trabajas hoy.' },
@@ -381,17 +546,17 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
   ]
 
   const pendingItems = [
-    dashboard.recentAlerts.length > 0
+    recentAlerts.length > 0
       ? {
-          title: `${dashboard.recentAlerts.length} alertas activas`,
+          title: `${recentAlerts.length} alertas activas`,
           helper: 'Revisa alumnos o grupos que requieren atencion.',
           to: '/app/alerts',
           tone: 'warning' as const,
         }
       : null,
-    dashboard.upcomingActivities.length > 0
+    upcomingActivities.length > 0
       ? {
-          title: `${dashboard.upcomingActivities.length} actividades proximas`,
+          title: `${upcomingActivities.length} actividades proximas`,
           helper: 'Confirma fecha, grupo y evaluacion antes del encuentro.',
           to: '/app/activities',
         }
@@ -413,17 +578,17 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
         highlights={[
           {
             label: 'Mis grupos',
-            value: dashboard.groups.length,
+            value: <HighlightValue loading={loading.groups && !groups} value={ownGroups.length} />,
             helper: 'Espacios asignados actualmente para acompañamiento.',
           },
           {
             label: 'Ultimo registro',
-            value: dashboard.latestAttendance ? formatDate(dashboard.latestAttendance.date, 'dd MMM') : 'Pendiente',
+            value: <HighlightValue loading={loading.attendance && !latestAttendance} value={latestAttendance ? formatDate(latestAttendance.date, 'dd MMM') : 'Pendiente'} />,
             helper: 'Fecha de la asistencia más reciente dentro del año activo.',
           },
           {
             label: 'Seguimiento activo',
-            value: dashboard.recentAlerts.length,
+            value: <HighlightValue loading={loading.alerts && !alerts} value={recentAlerts.length} />,
             helper: 'Alertas o casos que requieren revisar observaciones.',
           },
         ]}
@@ -436,10 +601,10 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard title="Mis grupos" value={dashboard.groups.length} icon={Layers3} to="/app/groups" />
-        <SummaryCard title="Alumnos" value={dashboard.totalStudents} icon={BookUser} to="/app/students" />
-        <SummaryCard title="Asistencia" value={dashboard.latestAttendance ? formatDate(dashboard.latestAttendance.date, 'dd MMM') : 'Pendiente'} icon={ChartColumn} to="/app/attendance" />
-        <SummaryCard title="Alertas" value={dashboard.recentAlerts.length} icon={TriangleAlert} to="/app/alerts" />
+        <SummaryCard title="Mis grupos" value={<HighlightValue loading={loading.groups && !groups} value={ownGroups.length} />} icon={Layers3} to="/app/groups" />
+        <SummaryCard title="Alumnos" value={<HighlightValue loading={loading.summary && !summary} value={totalStudents} />} icon={BookUser} to="/app/students" />
+        <SummaryCard title="Asistencia" value={<HighlightValue loading={loading.attendance && !latestAttendance} value={latestAttendance ? formatDate(latestAttendance.date, 'dd MMM') : 'Pendiente'} />} icon={ChartColumn} to="/app/attendance" />
+        <SummaryCard title="Alertas" value={<HighlightValue loading={loading.alerts && !alerts} value={recentAlerts.length} />} icon={TriangleAlert} to="/app/alerts" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] xl:items-start">
@@ -447,6 +612,7 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
           title="Pendientes prioritarios"
           description="Casos y actividades que vale la pena revisar antes de cerrar la jornada."
           items={pendingItems}
+          loading={(loading.alerts && !alerts) || (loading.activities && !activities)}
         />
 
         <div className="space-y-4">
@@ -459,7 +625,7 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
                 <div>
                   <p className="font-medium text-foreground">Ultima asistencia</p>
                   <p className="text-muted-foreground">
-                    {dashboard.latestAttendance ? formatDate(dashboard.latestAttendance.date) : 'Aún no registrada'}
+                    {loading.attendance && !latestAttendance ? 'Cargando...' : latestAttendance ? formatDate(latestAttendance.date) : 'Aún no registrada'}
                   </p>
                 </div>
               </div>
@@ -467,7 +633,7 @@ function CatechistDashboard({ userName, dashboard, activeYear, availableYears, s
                 <Bell className="size-4 text-primary" />
                 <div>
                   <p className="font-medium text-foreground">Alertas vigentes</p>
-                  <p className="text-muted-foreground">{dashboard.recentAlerts.length} casos por revisar.</p>
+                  <p className="text-muted-foreground">{loading.alerts && !alerts ? 'Cargando casos...' : `${recentAlerts.length} casos por revisar.`}</p>
                 </div>
               </div>
             </div>

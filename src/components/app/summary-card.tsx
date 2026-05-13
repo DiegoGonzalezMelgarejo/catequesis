@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ArrowUpRight, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -6,8 +7,8 @@ import { cn } from '@/utils/cn'
 
 type SummaryCardProps = {
   title: string
-  value: string | number
-  caption?: string
+  value: ReactNode
+  caption?: ReactNode
   icon: LucideIcon
   to?: string
 }

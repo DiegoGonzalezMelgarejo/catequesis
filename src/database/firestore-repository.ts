@@ -94,7 +94,7 @@ type PaginatedQueryOptions = {
   cursor?: QueryDocumentSnapshot<DocumentData> | null
 }
 
-type ReadOptions = {
+export type ReadOptions = {
   source?: 'server-first' | 'cache-first'
   cacheKey?: string
   maxAgeMs?: number

@@ -62,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const authenticatedUser = await loginUser(username, password)
         setUser(authenticatedUser)
         if (authenticatedUser) {
-          void getAvailableWorkYears()
+          void getAvailableWorkYears({ source: 'cache-first' })
         }
         if (!authenticatedUser) {
           resetBootstrapStage()

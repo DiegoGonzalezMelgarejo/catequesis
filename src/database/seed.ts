@@ -17,17 +17,16 @@ import { getCurrentYear } from '@/utils/year'
 const SEARCH_INDEX_VERSION = '3'
 let databaseInitializationPromise: Promise<void> | null = null
 let databaseAuthReadyPromise: Promise<void> | null = null
+let databaseWarmupPromise: Promise<void> | null = null
 
 function createTimestamp() {
   return new Date().toISOString()
 }
 
-async function ensureBaseSeedData() {
+async function ensureBaseSeedUsers() {
   const seedSetting = await getSetting('seed-version')
 
   const timestamp = createTimestamp()
-
-  await ensureDefaultParishExists()
 
   const superAdminUser: User = {
     id: 'seed-super-admin',
@@ -68,21 +67,7 @@ async function ensureBaseSeedData() {
     updatedAt: timestamp,
   }
 
-  const [existingUsers, existingParishes] = await Promise.all([
-    listDocuments<User>('users'),
-    listDocuments<Parish>('parishes'),
-  ])
-
-  if (!existingParishes.some((parish) => parish.id === DEFAULT_PARISH_ID)) {
-    await putDocument('parishes', {
-      id: DEFAULT_PARISH_ID,
-      name: 'Parroquia Central',
-      city: 'Local',
-      active: true,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    } satisfies Parish)
-  }
+  const existingUsers = await listDocuments<User>('users')
 
   const existingAdmin = existingUsers.find(
     (user) => user.username.trim().toLowerCase() === 'admin',
@@ -99,9 +84,32 @@ async function ensureBaseSeedData() {
     await putDocument('users', superAdminUser)
   }
 
-  await ensureParishBaseCatalog(DEFAULT_PARISH_ID)
-
   await setSetting(setting)
+}
+
+async function ensureBaseWarmupData() {
+  const timestamp = createTimestamp()
+  const existingParishes = await listDocuments<Parish>('parishes')
+
+  if (!existingParishes.some((parish) => parish.id === DEFAULT_PARISH_ID)) {
+    await putDocument('parishes', {
+      id: DEFAULT_PARISH_ID,
+      name: 'Parroquia Central',
+      city: 'Local',
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    } satisfies Parish)
+  }
+
+  await ensureDefaultParishExists()
+  await ensureParishBaseCatalog(DEFAULT_PARISH_ID)
+}
+
+function waitForNextTurn() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0)
+  })
 }
 
 async function ensureSearchIndexes() {
@@ -163,17 +171,28 @@ async function ensureSearchIndexes() {
 export async function initializeDatabase() {
   await ensureDatabaseAuthReady()
 
-  await ensureSearchIndexes()
+  await ensureDatabaseWarmup()
+
+  await waitForNextTurn()
+  void ensureSearchIndexes()
 
   databaseAuthReadyPromise = Promise.resolve()
 }
 
 export function ensureDatabaseAuthReady() {
   if (!databaseAuthReadyPromise) {
-    databaseAuthReadyPromise = ensureBaseSeedData()
+    databaseAuthReadyPromise = ensureBaseSeedUsers()
   }
 
   return databaseAuthReadyPromise
+}
+
+export function ensureDatabaseWarmup() {
+  if (!databaseWarmupPromise) {
+    databaseWarmupPromise = ensureBaseWarmupData()
+  }
+
+  return databaseWarmupPromise
 }
 
 export function ensureDatabaseInitialized() {

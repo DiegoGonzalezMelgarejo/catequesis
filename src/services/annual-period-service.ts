@@ -1,4 +1,4 @@
-import { listDocuments, putDocument } from '@/database/firestore-repository'
+import { listDocuments, putDocument, type ReadOptions } from '@/database/firestore-repository'
 import { getSessionScope } from '@/services/session-service'
 import { notifyDataChanged } from '@/store/data-store'
 import type { AnnualPeriod } from '@/types/models'
@@ -17,10 +17,11 @@ function normalizeYear(year: number) {
   return year
 }
 
-export async function getAvailableWorkYears() {
+export async function getAvailableWorkYears(options?: ReadOptions) {
   const periods = await listDocuments<AnnualPeriod>('annualPeriods', {
     cacheKey: 'annual-periods',
     maxAgeMs: WORK_YEARS_CACHE_TTL_MS,
+    ...options,
   })
   return sortYearsDescending(periods.map((period) => period.year))
 }
