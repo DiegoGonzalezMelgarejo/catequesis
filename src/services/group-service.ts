@@ -227,11 +227,11 @@ export async function getGroupsPage(
 
   const groupIds = pageGroups.map((group) => group.id)
   const [users, userGroups, students, activities, attendanceSessions] = await Promise.all([
-    getDocumentsByField<{ id: string; role: string; fullName: string }>('users', 'role', 'CATECHIST', { source: 'cache-first' }),
-    getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupIds, { source: 'cache-first' }),
-    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', groupIds, { source: 'cache-first' }),
-    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('activities', 'groupId', groupIds, { source: 'cache-first' }),
-    getDocumentsByFieldIn<{ id: string; groupId: string; date: string }>('attendanceSessions', 'groupId', groupIds, { source: 'cache-first' }),
+    getDocumentsByField<{ id: string; role: string; fullName: string }>('users', 'role', 'CATECHIST'),
+    getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupIds),
+    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', groupIds),
+    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('activities', 'groupId', groupIds),
+    getDocumentsByFieldIn<{ id: string; groupId: string; date: string }>('attendanceSessions', 'groupId', groupIds),
   ])
 
   const activityIds = activities.map((activity) => activity.id)
@@ -344,8 +344,8 @@ export async function getGroupDetail(user: User, groupId: string) {
 
   const [group, users, userGroups, students, attendanceSessions, activities] = await Promise.all([
     getDocumentById<Group>('groups', groupId),
-    getDocumentsByField<{ id: string; role: string; fullName: string }>('users', 'role', 'CATECHIST', { source: 'cache-first' }),
-    getDocumentsByField<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupId, { source: 'cache-first' }),
+    getDocumentsByField<{ id: string; role: string; fullName: string }>('users', 'role', 'CATECHIST'),
+    getDocumentsByField<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', groupId),
     getDocumentsByField<{
       id: string
       firstName: string
@@ -355,8 +355,8 @@ export async function getGroupDetail(user: User, groupId: string) {
       observations?: string
       active: boolean
       groupId: string
-    }>('students', 'groupId', groupId, { source: 'cache-first' }),
-    getDocumentsByField<{ id: string; groupId: string; date: string; notes?: string }>('attendanceSessions', 'groupId', groupId, { source: 'cache-first' }),
+    }>('students', 'groupId', groupId),
+    getDocumentsByField<{ id: string; groupId: string; date: string; notes?: string }>('attendanceSessions', 'groupId', groupId),
     getDocumentsByField<{
       id: string
       groupId: string
@@ -365,7 +365,7 @@ export async function getGroupDetail(user: User, groupId: string) {
       type: ActivityType
       maxGrade: number
       active: boolean
-    }>('activities', 'groupId', groupId, { source: 'cache-first' }),
+    }>('activities', 'groupId', groupId),
   ])
 
   if (!group) {
@@ -390,10 +390,10 @@ export async function getGroupDetail(user: User, groupId: string) {
           whatsapp?: string
           email?: string
           isPrimary: boolean
-        }>('guardians', 'studentId', groupStudentIds, { source: 'cache-first' })
+        }>('guardians', 'studentId', groupStudentIds)
       : Promise.resolve([]),
     groupStudents.length > 0
-      ? getDocumentsByFieldIn<{ id: string; studentId: string; sacramentId: string }>('studentSacraments', 'studentId', groupStudentIds, { source: 'cache-first' })
+      ? getDocumentsByFieldIn<{ id: string; studentId: string; sacramentId: string }>('studentSacraments', 'studentId', groupStudentIds)
       : Promise.resolve([]),
     groupSessions.length > 0
       ? getDocumentsByFieldIn<{
@@ -402,7 +402,7 @@ export async function getGroupDetail(user: User, groupId: string) {
           studentId: string
           status: AttendanceStatus
           observations?: string
-        }>('attendanceRecords', 'sessionId', groupSessionIds, { source: 'cache-first' })
+        }>('attendanceRecords', 'sessionId', groupSessionIds)
       : Promise.resolve([]),
     groupActivities.length > 0
       ? getDocumentsByFieldIn<{
@@ -411,15 +411,15 @@ export async function getGroupDetail(user: User, groupId: string) {
           studentId: string
           grade: number
           observations?: string
-        }>('activityGrades', 'activityId', groupActivityIds, { source: 'cache-first' })
+        }>('activityGrades', 'activityId', groupActivityIds)
       : Promise.resolve([]),
-    listDocuments<ChecklistCatalogItem>('checklistCatalog', { source: 'cache-first' }),
-    listDocuments<DocumentRequirement>('documentRequirements', { source: 'cache-first' }),
+    listDocuments<ChecklistCatalogItem>('checklistCatalog'),
+    listDocuments<DocumentRequirement>('documentRequirements'),
     groupStudents.length > 0
-      ? getDocumentsByFieldIn<StudentChecklistProgress>('studentChecklistProgress', 'studentId', groupStudentIds, { source: 'cache-first' })
+      ? getDocumentsByFieldIn<StudentChecklistProgress>('studentChecklistProgress', 'studentId', groupStudentIds)
       : Promise.resolve([]),
     groupStudents.length > 0
-      ? getDocumentsByFieldIn<StudentDocumentProgress>('studentDocumentProgress', 'studentId', groupStudentIds, { source: 'cache-first' })
+      ? getDocumentsByFieldIn<StudentDocumentProgress>('studentDocumentProgress', 'studentId', groupStudentIds)
       : Promise.resolve([]),
   ])
 

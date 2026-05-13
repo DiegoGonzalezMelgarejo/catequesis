@@ -19,11 +19,11 @@ export default defineConfig(({ command }) => ({
         'icons/icon-512.svg',
         'icons/apple-touch-icon.svg',
       ],
-      manifest: {
-        name: 'Catequesis PWA',
-        short_name: 'Catequesis',
-        description:
-          'Aplicacion offline-first para la gestion de catequesis, asistencia, actividades y notas.',
+        manifest: {
+          name: 'Catequesis PWA',
+          short_name: 'Catequesis',
+          description:
+            'Aplicacion para la gestion de catequesis, asistencia, actividades y notas.',
         theme_color: '#6d5efc',
         background_color: '#f5f7ff',
         display: 'standalone',

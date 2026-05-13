@@ -367,7 +367,7 @@ export async function getStudentHistory(user: User, studentId: string) {
     return null
   }
 
-  const student = await getDocumentById<Student>('students', studentId, { source: 'cache-first' })
+  const student = await getDocumentById<Student>('students', studentId)
 
   if (!student) {
     return null
@@ -375,17 +375,17 @@ export async function getStudentHistory(user: User, studentId: string) {
 
   const [group, studentGuardians, studentSacramentLinks, allSacraments, studentAttendanceRecords, groupActivities, studentActivityGrades, checklistCatalog, documentRequirements, studentChecklistEntry, studentDocumentEntry] =
     await Promise.all([
-      getDocumentById<{ id: string; name: string }>('groups', student.groupId, { source: 'cache-first' }),
-      getDocumentsByField<Guardian>('guardians', 'studentId', studentId, { source: 'cache-first' }),
-      getDocumentsByField<{ id: string; studentId: string; sacramentId: string }>('studentSacraments', 'studentId', studentId, { source: 'cache-first' }),
-      listDocuments<{ id: string; name: SacramentName }>('sacraments', { source: 'cache-first' }),
+      getDocumentById<{ id: string; name: string }>('groups', student.groupId),
+      getDocumentsByField<Guardian>('guardians', 'studentId', studentId),
+      getDocumentsByField<{ id: string; studentId: string; sacramentId: string }>('studentSacraments', 'studentId', studentId),
+      listDocuments<{ id: string; name: SacramentName }>('sacraments'),
       getDocumentsByField<{
         id: string
         sessionId: string
         studentId: string
         status: AttendanceStatus
         observations?: string
-      }>('attendanceRecords', 'studentId', studentId, { source: 'cache-first' }),
+      }>('attendanceRecords', 'studentId', studentId),
       getDocumentsByField<{
         id: string
         groupId: string
@@ -393,24 +393,24 @@ export async function getStudentHistory(user: User, studentId: string) {
         type: ActivityType
         date: string
         maxGrade: number
-      }>('activities', 'groupId', student.groupId, { source: 'cache-first' }),
+      }>('activities', 'groupId', student.groupId),
       getDocumentsByField<{
         id: string
         activityId: string
         studentId: string
         grade: number
         observations?: string
-      }>('activityGrades', 'studentId', studentId, { source: 'cache-first' }),
-      listDocuments<ChecklistCatalogItem>('checklistCatalog', { source: 'cache-first' }),
-      listDocuments<DocumentRequirement>('documentRequirements', { source: 'cache-first' }),
-      getDocumentsByField<StudentChecklistProgress>('studentChecklistProgress', 'studentId', studentId, { source: 'cache-first' }),
-      getDocumentsByField<StudentDocumentProgress>('studentDocumentProgress', 'studentId', studentId, { source: 'cache-first' }),
+      }>('activityGrades', 'studentId', studentId),
+      listDocuments<ChecklistCatalogItem>('checklistCatalog'),
+      listDocuments<DocumentRequirement>('documentRequirements'),
+      getDocumentsByField<StudentChecklistProgress>('studentChecklistProgress', 'studentId', studentId),
+      getDocumentsByField<StudentDocumentProgress>('studentDocumentProgress', 'studentId', studentId),
     ])
 
   const sessionIds = studentAttendanceRecords.map((record) => record.sessionId)
   const [attendanceSessions] = await Promise.all([
     sessionIds.length > 0
-      ? getDocumentsByIds<{ id: string; groupId: string; date: string }>('attendanceSessions', sessionIds, { source: 'cache-first' })
+      ? getDocumentsByIds<{ id: string; groupId: string; date: string }>('attendanceSessions', sessionIds)
       : Promise.resolve([]),
   ])
 

@@ -12,7 +12,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   const { loading, user } = useAuth()
 
   if (loading) {
-    return <LoadingState fullScreen label="Preparando la experiencia offline" />
+    return <LoadingState fullScreen label="Preparando la aplicacion" />
   }
 
   if (!user) {

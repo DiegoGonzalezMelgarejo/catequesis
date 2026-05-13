@@ -55,17 +55,13 @@ export async function getActivityOverviews(user: User, groupFilter?: string, yea
   }
 
   const [activities, students] = await Promise.all([
-    getDocumentsByFieldIn<Activity>('activities', 'groupId', visibleGroupIds, { source: 'cache-first' }),
-    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', visibleGroupIds, {
-      source: 'cache-first',
-    }),
+    getDocumentsByFieldIn<Activity>('activities', 'groupId', visibleGroupIds),
+    getDocumentsByFieldIn<{ id: string; groupId: string; active: boolean }>('students', 'groupId', visibleGroupIds),
   ])
 
   const activityIds = activities.map((activity) => activity.id)
   const grades = activityIds.length > 0
-    ? await getDocumentsByFieldIn<{ id: string; activityId: string }>('activityGrades', 'activityId', activityIds, {
-        source: 'cache-first',
-      })
+    ? await getDocumentsByFieldIn<{ id: string; activityId: string }>('activityGrades', 'activityId', activityIds)
     : []
 
   const groupMap = new Map(groups.map((group) => [group.id, group.name]))
@@ -202,7 +198,7 @@ export async function setActivityActive(activityId: string, active: boolean) {
 }
 
 export async function getActivityGradeSheet(user: User, activityId: string) {
-  const activity = await getDocumentById<Activity>('activities', activityId, { source: 'cache-first' })
+  const activity = await getDocumentById<Activity>('activities', activityId)
 
   if (!activity) {
     return null
@@ -218,7 +214,6 @@ export async function getActivityGradeSheet(user: User, activityId: string) {
       'students',
       'groupId',
       activity.groupId,
-      { source: 'cache-first' },
     ),
     getDocumentsByField<{
       id: string
@@ -226,7 +221,7 @@ export async function getActivityGradeSheet(user: User, activityId: string) {
       studentId: string
       grade: number
       observations?: string
-    }>('activityGrades', 'activityId', activityId, { source: 'cache-first' }),
+    }>('activityGrades', 'activityId', activityId),
   ])
 
   return {

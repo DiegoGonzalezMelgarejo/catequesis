@@ -1,6 +1,6 @@
 # Catequesis PWA
 
-MVP offline-first para gestion de catequesis, asistencia, actividades y notas.
+MVP para gestion de catequesis, asistencia, actividades y notas.
 
 ## Stack
 
@@ -79,7 +79,7 @@ firebase deploy --only firestore:rules
 - Asignacion catequista-grupo
 - Sacramentos por alumno
 - Uno o dos acudientes por alumno
-- Toma de asistencia offline
+- Toma de asistencia
 - Actividades y notas
 - Historial de alumno
 - Reportes
@@ -103,12 +103,10 @@ firebase deploy --only firestore:rules
 3. Selecciona `Agregar a pantalla de inicio`.
 4. Confirma el nombre y toca `Agregar`.
 
-## Offline
+## Conectividad
 
 - Los datos viven en Firestore.
-- Firestore consulta directamente la red mientras la persistencia offline este desactivada.
-- La app precachea recursos con service worker.
-- Sin internet, la app no garantiza acceso a datos de Firestore mientras esta configuracion temporal siga activa.
+- La app requiere conexion para consultar y actualizar datos.
 - La estructura ya esta conectada a Firebase Firestore.
 
 ## Estructura principal

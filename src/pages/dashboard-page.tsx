@@ -59,11 +59,11 @@ export function DashboardPage() {
   const { activeYear, availableYears, loading: yearLoading, setActiveYear, createYearPeriod } = useActiveYear()
   const [snapshot, setSnapshot] = useState<ReturnType<typeof loadDashboardSnapshot>>(null)
   const { data: groups, loading: groupsLoading } = useAsyncData(
-    () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getAccessibleGroups(user, activeYear, { source: 'cache-first' }) : Promise.resolve(undefined)),
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear ? getAccessibleGroups(user, activeYear) : Promise.resolve(undefined)),
     [user?.id, user?.role, activeYear],
   )
   const { data: summary, loading: summaryLoading } = useAsyncData(
-    () => (user && user.role !== 'SUPER_ADMIN' && activeYear && groups ? getDashboardSummaryData(user, groups, activeYear, { source: 'cache-first' }) : Promise.resolve(undefined)),
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear && groups ? getDashboardSummaryData(user, groups, activeYear) : Promise.resolve(undefined)),
     [user?.id, user?.role, activeYear, groups],
   )
   const { data: alerts, loading: alertsLoading } = useAsyncData(
@@ -75,7 +75,7 @@ export function DashboardPage() {
     [user?.id, user?.role, activeYear],
   )
   const { data: latestAttendance, loading: attendanceLoading } = useAsyncData(
-    () => (user && user.role !== 'SUPER_ADMIN' && activeYear && groups ? getDashboardAttendanceData(groups, user, activeYear, { source: 'cache-first' }) : Promise.resolve(undefined)),
+    () => (user && user.role !== 'SUPER_ADMIN' && activeYear && groups ? getDashboardAttendanceData(groups, user, activeYear) : Promise.resolve(undefined)),
     [user?.id, user?.role, activeYear, groups],
   )
 

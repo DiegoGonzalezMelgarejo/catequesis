@@ -76,7 +76,7 @@ export function StudentsPage() {
 
       const [groups, sacraments, guardians, studentSacraments, alerts] = await Promise.all([
         getAccessibleGroups(user, activeYear ?? undefined),
-        listDocuments<{ id: string; name: string; active: boolean }>('sacraments', { source: 'cache-first' }),
+        listDocuments<{ id: string; name: string; active: boolean }>('sacraments'),
         visibleStudentIds.length > 0
           ? getDocumentsByFieldIn<{
               id: string
@@ -87,14 +87,13 @@ export function StudentsPage() {
               whatsapp?: string
               email?: string
               isPrimary: boolean
-            }>('guardians', 'studentId', visibleStudentIds, { source: 'cache-first' })
+            }>('guardians', 'studentId', visibleStudentIds)
           : Promise.resolve([]),
         visibleStudentIds.length > 0
           ? getDocumentsByFieldIn<{ id: string; studentId: string; sacramentId: string }>(
               'studentSacraments',
               'studentId',
               visibleStudentIds,
-              { source: 'cache-first' },
             )
           : Promise.resolve([]),
         getAlertItems(user, activeYear ?? undefined),

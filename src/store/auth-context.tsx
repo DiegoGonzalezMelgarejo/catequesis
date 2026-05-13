@@ -1,4 +1,5 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { getAvailableWorkYears } from '@/services/annual-period-service'
 import { resetBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
@@ -28,18 +29,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let active = true
 
     async function bootstrap() {
-      setBootstrapStage('session')
-      const restoredUser = await restoreSession()
+      try {
+        setBootstrapStage('session')
+        const restoredUser = await restoreSession()
 
-      if (active) {
-        setUser(restoredUser)
-        setLoading(false)
-      }
+        if (active) {
+          setUser(restoredUser)
+        }
 
-      if (!restoredUser) {
+        if (!restoredUser) {
+          resetBootstrapStage()
+        }
+      } catch (error) {
+        console.error(error)
+
+        if (active) {
+          setUser(null)
+          toast.error('No se pudo restaurar la sesion. Inicia sesion de nuevo.')
+        }
+
         resetBootstrapStage()
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
       }
-
     }
 
     void bootstrap()
@@ -54,16 +68,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       loading,
       login: async (username, password) => {
-        setBootstrapStage('session')
-        const authenticatedUser = await loginUser(username, password)
-        setUser(authenticatedUser)
-        if (authenticatedUser) {
-          void getAvailableWorkYears()
-        }
-        if (!authenticatedUser) {
+        try {
+          setBootstrapStage('session')
+          const authenticatedUser = await loginUser(username, password)
+          setUser(authenticatedUser)
+          if (authenticatedUser) {
+            void getAvailableWorkYears()
+          }
+          if (!authenticatedUser) {
+            resetBootstrapStage()
+          }
+          return Boolean(authenticatedUser)
+        } catch (error) {
+          console.error(error)
           resetBootstrapStage()
+          toast.error('No se pudo iniciar sesion. Verifica la conexion e intenta de nuevo.')
+          return false
         }
-        return Boolean(authenticatedUser)
       },
       logout: () => {
         clearSession()

@@ -40,7 +40,7 @@ export async function getStudentsByGroup(groupId: string) {
     lastName: string
     active: boolean
     groupId: string
-  }>('students', 'groupId', groupId, { source: 'cache-first' })
+  }>('students', 'groupId', groupId)
 
   return students
     .sort((left, right) => left.lastName.localeCompare(right.lastName, 'es'))
@@ -57,7 +57,7 @@ export async function getAttendanceSessionDetail(groupId: string, date: string) 
     updatedAt: string
     parishId: string
     syncStatus: 'synced' | 'local' | 'pending'
-  }>('attendanceSessions', 'groupId', groupId, { source: 'cache-first' })
+  }>('attendanceSessions', 'groupId', groupId)
   const session = sessions.find((entry) => entry.groupId === groupId && entry.date === date)
 
   if (!session) {
@@ -83,7 +83,7 @@ export async function getAttendanceHistoryByGroup(groupId: string) {
     groupId: string
     date: string
     notes?: string
-  }>('attendanceSessions', 'groupId', groupId, { source: 'cache-first' }))
+  }>('attendanceSessions', 'groupId', groupId))
     .sort((left, right) => right.date.localeCompare(left.date))
 
   if (sessions.length === 0) {

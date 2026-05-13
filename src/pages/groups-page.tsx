@@ -84,11 +84,9 @@ export function GroupsPage() {
       const visibleGroupIds = pagedGroups.map((group) => group.id)
 
       const [catechists, userGroups, groups] = await Promise.all([
-        getDocumentsByField<{ id: string; fullName: string; role: string; active: boolean }>('users', 'role', 'CATECHIST', {
-          source: 'cache-first',
-        }),
+        getDocumentsByField<{ id: string; fullName: string; role: string; active: boolean }>('users', 'role', 'CATECHIST'),
         visibleGroupIds.length > 0
-          ? getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', visibleGroupIds, { source: 'cache-first' })
+          ? getDocumentsByFieldIn<{ id: string; userId: string; groupId: string }>('userGroups', 'groupId', visibleGroupIds)
           : Promise.resolve([]),
         getAccessibleGroups(user, activeYear ?? undefined),
       ])

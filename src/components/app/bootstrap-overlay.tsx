@@ -88,7 +88,7 @@ export function BootstrapOverlay() {
   const totalElapsedMs = startedAt ? Date.now() - startedAt : elapsedMs
   const showSlowHint = elapsedMs >= 3500
   const networkMessage = !isOnline
-    ? 'Sin internet. Estamos usando los datos locales del dispositivo.'
+    ? 'Sin internet. Verifica tu conexion para continuar.'
     : stage === 'session'
       ? 'Conectando con el servidor y validando tus credenciales.'
       : stage === 'periods'
@@ -110,7 +110,7 @@ export function BootstrapOverlay() {
           {isFirstPwaBoot ? (
             <div className="mt-4 rounded-[1rem] border border-primary/15 bg-white/80 px-4 py-3 text-sm text-muted-foreground shadow-card backdrop-blur">
               <p className="font-medium text-foreground">Primera configuración en este celular</p>
-              <p className="mt-1">La primera vez puede tardar un poco más mientras se prepara el almacenamiento local de la app.</p>
+              <p className="mt-1">La primera vez puede tardar un poco más mientras se establece la conexion inicial con el servidor.</p>
             </div>
           ) : null}
         </div>
