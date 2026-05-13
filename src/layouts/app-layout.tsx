@@ -7,6 +7,7 @@ import { DesktopSidebar } from '@/components/app/desktop-sidebar'
 import { AppHeader } from '@/components/app/app-header'
 import { MobileBottomNavigation } from '@/components/app/mobile-bottom-navigation'
 import { PasswordChangeGate } from '@/components/app/password-change-gate'
+import { LoadingState } from '@/components/app/loading-state'
 import { useActiveYear } from '@/hooks/use-active-year'
 import { useAuth } from '@/hooks/use-auth'
 import { navigationByRole, pageMetadata } from '@/theme/navigation'
@@ -16,7 +17,7 @@ export function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { activeYear, yearJustChanged } = useActiveYear()
+  const { activeYear, loading: yearLoading, yearJustChanged } = useActiveYear()
   const [pageTransitionStage, setPageTransitionStage] = useState<'idle' | 'entering'>('idle')
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export function AppLayout() {
             ) : null}
             <div className={pageTransitionStage === 'entering' ? 'page-enter' : 'page-idle'}>
               {!user.mustChangePassword && (!requiresWorkYear || activeYear != null) ? <Outlet /> : null}
+              {!user.mustChangePassword && requiresWorkYear && activeYear == null && yearLoading ? <LoadingState label="Cargando periodos de trabajo..." /> : null}
             </div>
           </main>
         </div>

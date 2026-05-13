@@ -101,7 +101,7 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
     let resolvedActiveYear: number | null = null
 
     try {
-      const finalYears = await getAvailableWorkYears()
+      const finalYears = await getAvailableWorkYears({ source: 'server-first' })
       setAvailableYears(finalYears)
 
       const storageKey = getStorageKey(user.id)
@@ -166,7 +166,7 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
       setActiveYear: activateYear,
       createYearPeriod: async ({ year, observations }) => {
         const period = await createAnnualPeriod({ year, observations })
-        const nextYears = await getAvailableWorkYears()
+        const nextYears = await getAvailableWorkYears({ source: 'server-first' })
         setAvailableYears(nextYears)
         activateYear(period.year, nextYears)
       },
