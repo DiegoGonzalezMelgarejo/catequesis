@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 
 import { useAuth } from '@/hooks/use-auth'
 import { createAnnualPeriod, getAvailableWorkYears } from '@/services/annual-period-service'
-import { setBootstrapStage } from '@/store/bootstrap-store'
+import { finishBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { useDataStore } from '@/store/data-store'
 import { formatYearLabel } from '@/utils/year'
 
@@ -49,6 +49,18 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
   const [loading, setLoading] = useState(false)
   const [yearJustChanged, setYearJustChanged] = useState(false)
   const changeTimeoutRef = useRef<number | null>(null)
+  const bootstrapFinishTimeoutRef = useRef<number | null>(null)
+
+  function scheduleBootstrapFinish() {
+    if (bootstrapFinishTimeoutRef.current != null) {
+      window.clearTimeout(bootstrapFinishTimeoutRef.current)
+    }
+
+    bootstrapFinishTimeoutRef.current = window.setTimeout(() => {
+      finishBootstrapStage()
+      bootstrapFinishTimeoutRef.current = null
+    }, 220)
+  }
 
   function activateYear(year: number, validYears = availableYears) {
     if (!validYears.includes(year)) {
@@ -86,6 +98,7 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
 
     setLoading(true)
     setBootstrapStage('periods')
+    let resolvedActiveYear: number | null = null
 
     try {
       const finalYears = await getAvailableWorkYears({ source: 'cache-first' })
@@ -95,20 +108,22 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
       const storedYear = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null
       const parsedStoredYear = storedYear ? Number(storedYear) : null
 
-      setActiveYearState((current) => {
-        if (current && finalYears.includes(current)) {
-          return current
-        }
+      resolvedActiveYear = activeYear && finalYears.includes(activeYear)
+        ? activeYear
+        : parsedStoredYear && Number.isFinite(parsedStoredYear) && finalYears.includes(parsedStoredYear)
+          ? parsedStoredYear
+          : null
 
-        if (parsedStoredYear && Number.isFinite(parsedStoredYear) && finalYears.includes(parsedStoredYear)) {
-          return parsedStoredYear
-        }
-
-        return null
-      })
+      setActiveYearState(resolvedActiveYear)
     } finally {
       setLoading(false)
-      setBootstrapStage('panel')
+
+      if (resolvedActiveYear != null) {
+        setBootstrapStage('panel')
+        scheduleBootstrapFinish()
+      } else {
+        finishBootstrapStage()
+      }
     }
   }
 
@@ -134,6 +149,10 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
     return () => {
       if (changeTimeoutRef.current != null) {
         window.clearTimeout(changeTimeoutRef.current)
+      }
+
+      if (bootstrapFinishTimeoutRef.current != null) {
+        window.clearTimeout(bootstrapFinishTimeoutRef.current)
       }
     }
   }, [])

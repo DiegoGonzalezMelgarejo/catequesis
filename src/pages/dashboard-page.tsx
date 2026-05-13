@@ -36,7 +36,6 @@ import {
   saveDashboardSnapshot,
   type DashboardSummary,
 } from '@/services/dashboard-service'
-import { finishBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { cn } from '@/utils/cn'
 import { formatDate } from '@/utils/date'
 import { formatYearLabel } from '@/utils/year'
@@ -110,22 +109,6 @@ export function DashboardPage() {
       latestAttendance: latestAttendanceData,
     })
   }, [activeYear, activitiesData, alertsData, latestAttendanceData, summaryData, user])
-
-  useEffect(() => {
-    if (!user || user.role === 'SUPER_ADMIN') {
-      finishBootstrapStage()
-      return
-    }
-
-    if (activeYear && groupsLoading) {
-      setBootstrapStage('panel')
-      return
-    }
-
-    if (activeYear && groups) {
-      finishBootstrapStage()
-    }
-  }, [activeYear, groups, groupsLoading, user])
 
   if (user?.role === 'SUPER_ADMIN') {
     return <SuperAdminDashboard />

@@ -8,10 +8,20 @@ type BootstrapStoreState = {
   isPwaMobile: boolean
   isFirstPwaBoot: boolean
   stage: BootstrapStage
+  startedAt: number | null
+  stageChangedAt: number | null
   initializeClient: () => void
   setStage: (stage: BootstrapStage) => void
   finish: () => void
   reset: () => void
+}
+
+function logBootstrapEvent(message: string, data?: Record<string, unknown>) {
+  if (!import.meta.env.DEV) {
+    return
+  }
+
+  console.info('[bootstrap]', message, data ?? {})
 }
 
 function detectPwaMobile() {
@@ -31,6 +41,8 @@ export const useBootstrapStore = create<BootstrapStoreState>((set, get) => ({
   isPwaMobile: false,
   isFirstPwaBoot: false,
   stage: null,
+  startedAt: null,
+  stageChangedAt: null,
   initializeClient: () => {
     if (typeof window === 'undefined') {
       return
@@ -39,27 +51,36 @@ export const useBootstrapStore = create<BootstrapStoreState>((set, get) => ({
     const isPwaMobile = detectPwaMobile()
     const isFirstPwaBoot = isPwaMobile && !window.localStorage.getItem(FIRST_PWA_BOOT_KEY)
 
-    set({ isPwaMobile, isFirstPwaBoot })
+    set({ isPwaMobile, isFirstPwaBoot, startedAt: null, stageChangedAt: null })
   },
   setStage: (stage) => {
     if (!get().isPwaMobile) {
       return
     }
 
-    set({ stage })
+    const now = Date.now()
+    const nextStartedAt = get().startedAt ?? now
+
+    logBootstrapEvent('stage', { stage, elapsedMs: now - nextStartedAt })
+    set({ stage, startedAt: nextStartedAt, stageChangedAt: now })
   },
   finish: () => {
     if (!get().isPwaMobile) {
       return
     }
 
+    const now = Date.now()
+    const startedAt = get().startedAt
+
+    logBootstrapEvent('finish', { totalMs: startedAt ? now - startedAt : 0 })
+
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(FIRST_PWA_BOOT_KEY, '1')
     }
 
-    set({ stage: null, isFirstPwaBoot: false })
+    set({ stage: null, isFirstPwaBoot: false, startedAt: null, stageChangedAt: null })
   },
-  reset: () => set({ stage: null }),
+  reset: () => set({ stage: null, startedAt: null, stageChangedAt: null }),
 }))
 
 export function initializeBootstrapClient() {
