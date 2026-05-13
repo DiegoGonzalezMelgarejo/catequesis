@@ -18,8 +18,8 @@ MVP offline-first para gestion de catequesis, asistencia, actividades y notas.
 
 ## Credenciales iniciales
 
-- Usuario: `admin`
-- Contrasena: `admin123`
+- Usuario: `superadmin`
+- Contrasena: `superadmin123`
 
 ## Ejecutar en desarrollo
 
@@ -38,7 +38,21 @@ npm run build
 
 - Proyecto configurado: `catequesis-db349`
 - La app usa Firestore con cache offline del SDK web.
-- El seed crea automaticamente el usuario `admin` y los sacramentos al primer arranque.
+- El seed inicial de usuarios se ejecuta manualmente con un script aparte.
+
+### Seed de usuarios
+
+Ejecuta este comando antes del primer uso o durante el despliegue:
+
+```bash
+npm run seed:users
+```
+
+El script:
+
+- crea la parroquia base si no existe
+- crea `superadmin` solo si no existe
+- no actualiza usuarios ya creados
 
 ### Reglas actuales
 
@@ -71,7 +85,7 @@ firebase deploy --only firestore:rules
 - Reportes
 - Alertas
 - Exportacion CSV
-- Seed inicial de admin y sacramentos en Firestore
+- Seed inicial manual de usuarios en Firestore
 
 ## Instalacion como PWA
 

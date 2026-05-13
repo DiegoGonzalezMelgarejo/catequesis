@@ -112,6 +112,8 @@ export function ActiveYearProvider({ children }: ActiveYearProviderProps) {
         ? activeYear
         : parsedStoredYear && Number.isFinite(parsedStoredYear) && finalYears.includes(parsedStoredYear)
           ? parsedStoredYear
+          : finalYears.length > 0
+            ? finalYears[0]
           : null
 
       setActiveYearState(resolvedActiveYear)

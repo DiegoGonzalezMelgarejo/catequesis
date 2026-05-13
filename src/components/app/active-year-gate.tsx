@@ -2,15 +2,13 @@ import { Modal } from '@/components/app/modal'
 import { YearManagementPanel } from '@/components/app/year-management-panel'
 import { useActiveYear } from '@/hooks/use-active-year'
 import { useAuth } from '@/hooks/use-auth'
-import { getCurrentYear } from '@/utils/year'
 
 export function ActiveYearGate() {
   const { user } = useAuth()
   const { activeYear, availableYears, setActiveYear, createYearPeriod } = useActiveYear()
   const canCreate = user?.role === 'ADMIN'
-  const requiredYear = getCurrentYear()
 
-  if (user?.role === 'SUPER_ADMIN' || (activeYear != null && availableYears.includes(requiredYear))) {
+  if (user?.role === 'SUPER_ADMIN' || activeYear != null) {
     return null
   }
 
@@ -22,7 +20,7 @@ export function ActiveYearGate() {
       description="Antes de entrar al panel, define el corte anual con el que vas a trabajar en esta sesion."
       footer={null}
     >
-      <YearManagementPanel activeYear={activeYear} availableYears={availableYears} onSelectYear={setActiveYear} onCreateYear={createYearPeriod} requireCreation canCreate={canCreate} requiredYear={requiredYear} />
+      <YearManagementPanel activeYear={activeYear} availableYears={availableYears} onSelectYear={setActiveYear} onCreateYear={createYearPeriod} requireCreation canCreate={canCreate} />
     </Modal>
   )
 }

@@ -1,6 +1,5 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
 
-import { ensureDatabaseAuthReady, ensureDatabaseInitialized } from '@/database/seed'
 import { getAvailableWorkYears } from '@/services/annual-period-service'
 import { resetBootstrapStage, setBootstrapStage } from '@/store/bootstrap-store'
 import { clearSession, loginUser, restoreSession, syncSessionUser, updateUserPassword } from '@/services/auth-service'
@@ -41,7 +40,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         resetBootstrapStage()
       }
 
-      void ensureDatabaseInitialized()
     }
 
     void bootstrap()
@@ -57,8 +55,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       loading,
       login: async (username, password) => {
         setBootstrapStage('session')
-        await ensureDatabaseAuthReady()
-        void ensureDatabaseInitialized()
         const authenticatedUser = await loginUser(username, password)
         setUser(authenticatedUser)
         if (authenticatedUser) {
